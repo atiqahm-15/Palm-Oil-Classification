@@ -1,0 +1,20 @@
+# Data processing and numerical operations
+numpy
+pandas
+
+# Visualization
+matplotlib
+seaborn
+
+# Image processing
+Pillow
+
+# Machine Learning framework
+tensorflow
+
+# Evaluation metrics
+scikit-learn
+
+# Jupyter environment (if needed to run the notebook locally)
+notebook
+ipykernel

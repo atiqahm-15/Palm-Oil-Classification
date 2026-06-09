@@ -1,0 +1,30 @@
+# Datasets
+dataset/
+data/
+
+# Model Checkpoints and Weights
+models/
+*.keras
+*.h5
+*.hdf5
+*.ckpt
+*.cp
+
+# Python Caches
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+# Virtual Environments
+venv/
+env/
+.env
+
+# Mobile App Exports (Uncomment if you want to ignore TFLite)
+exports/
+
+# IDE and OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
