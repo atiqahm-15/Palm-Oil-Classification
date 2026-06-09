@@ -17,24 +17,21 @@ The core architecture uses **MobileNetV2** configured for Transfer Learning. Mob
 *   **Stage 2 (Fine-Tuning):** The final 30 layers of MobileNetV2 are unfrozen and trained with a very low learning rate (`1e-5`) to adapt the pretrained ImageNet features to palm oil specific textures.
 
 ## Project Structure
-This repository contains two distinct Jupyter notebooks optimized for different purposes:
-
-### 1. `palm_oil_ripeness.ipynb` (Production Model)
-This is the main, robust model exported for the mobile app.
-*   **Accuracy:** 68%
+This repository contains the main notebook `palm_oil_ripeness.ipynb` which trains the production model exported for the mobile app.
+*   **Accuracy:** ~64.5% (refer to the `results/` folder for full metrics)
 *   **Key Feature:** Uses **Label Smoothing (`0.15`)**. Because the visual boundary between "Ripe" and "Underripe" is highly subjective, Label Smoothing intentionally makes the model cautious on borderline cases. 
 *   **Result:** This model is exceptionally stable and virtually immune to real-world lighting variations (tested under +/- 30% artificial brightness).
 
-### 2. `viva_presentation_model.ipynb` (Presentation Metrics)
-This notebook is configured strictly to generate the highest possible validation metrics for academic reporting.
-*   **Top-1 Accuracy:** 72%
-*   **Top-2 Accuracy:** 94%
-*   **Key Feature:** Label Smoothing is disabled, forcing the model to make 100% confident predictions. The phenomenal 94% Top-2 accuracy proves the model fundamentally understands the ordinal progression of ripeness.
+## Results
+The `results/` directory contains detailed evaluation metrics for the finetuned model, including:
+*   `classification_report_finetuned.txt`
+*   `confusion_matrix_finetuned.png`
+*   `metrics_finetuned.csv`
 
 ## Mobile Export
-The final trained production models are exported via TensorFlow Lite and can be found in the `exports/` folder:
+The final trained production models are exported via TensorFlow Lite. While the code generates these in the `exports/` folder, they are ignored via `.gitignore` to prevent exceeding GitHub file size limits. The files generated include:
 *   `mobilenetv2_palm_ripeness_fp32.tflite` (Standard 32-bit float model)
 *   `mobilenetv2_palm_ripeness_fp16.tflite` (Quantized 16-bit float model for smaller file size)
 *   `labels.txt` (Class label mapping for Android/iOS integration)
 
-*Note: The `dataset/` and raw `models/` checkpoints are ignored via `.gitignore` to prevent exceeding GitHub file size limits.*
+*Note: The `dataset/`, `exports/`, and raw `models/` checkpoints are ignored via `.gitignore`.*
