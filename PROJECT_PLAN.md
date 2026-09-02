@@ -14,7 +14,7 @@ Prepared: August 2026 — Semester break, ahead of formal FYP2 supervision
 | 0 — Environment & data sourcing | Complete |
 | 1 — Unified dataset construction | Complete |
 | 2 — Model development & comparison | **Complete under recipe v2** — FastViT_T8 94.55% ± 0.31, see end of §8 |
-| 3 — Mobile optimization (TFLite) | Not started — no `.tflite` exists in the repo yet |
+| 3 — Mobile optimization (TFLite) | **Conversion spike complete (2026-09-02)** — 12/12 exports builtin-only, no Flex; FastViT_T8 float16 (6.1MB / 47.2ms) is the recommended artefact. On-device benchmark still outstanding. See end of §8 |
 | 4 — Android app | Not started — `app/` holds a placeholder README |
 | 5 — Extended evaluation & ablation | **v2 LODO complete** — FastViT_T8, 4 folds × 3 seeds, mean **52.11%** vs 94.55% main split (see end of §8). Ablations not started |
 | 6 — Report writing & viva prep | Not started |
@@ -37,8 +37,14 @@ from sources the model trained on, and gave back ~4 points on an entirely held-o
 Critically this is **not** another under-training artifact: 10 of 12 fine-tuning stages
 early-stopped, versus 0 of 15 under v1. The honest reading is that a properly-trained model
 fits each training source's labelling convention harder rather than generalizing past it.
-See the final entry of §8 for the full result and its confound, and §9 for the decision this
-forces on which number the thesis presents.
+See the final entry of §8 for the full result and its confound.
+
+**The third thing to know, decided 2026-09-02.** The reporting question this forced is now
+settled: **the thesis headlines the main split (94.55% ± 0.31) and presents the 42.44-point
+gap as a quantified part of the result, not a footnote.** Every appearance of the headline
+must carry the scoping sentence given in the final entry of §8 — the ≥85% NFR is met on the
+held-out test split and is *not* claimed to hold under source shift. Consequence for the
+critical path: Phase 3/4 only have to demonstrate the main-split model on-device.
 
 **Reading order:** §0 for status, the last entry of §8 for what is in flight, §9 for what
 needs a supervisor decision.
@@ -610,8 +616,112 @@ Keep the GitHub repo as the source of truth: commit experiment configs and resul
     becomes the headline with the main split as a ceiling, or both are presented as bounding
     a range. This is now a live decision for supervisors, not a caveat — see §9.
 
+- **DECIDED (2026-09-02) — the thesis headlines the main split and reports the gap
+  explicitly.** Resolving the reporting question raised in the entry above and in §9. Of the
+  three framings on the table, the chosen one is closest to (a) but carries (c)'s substance:
+  **94.55% ± 0.31 is the headline result, and the 42.44-point generalization gap is presented
+  as a quantified part of the result rather than as a footnote.** Decision taken by the
+  student; to be put to Dr. Shahreeza as a recorded decision with its reasoning, not as an
+  open question.
+
+  **Required wording — the NFR claim must be scoped, every time the headline appears.**
+  The examiner's question is "your requirement is ≥85% and your field estimate is 52%, so is
+  the requirement met?" and the report must answer it rather than leave it standing:
+
+  > The ≥85% accuracy requirement is met on the held-out test split (94.55% ± 0.31). It is
+  > **not** claimed to hold under source shift: leave-one-dataset-out accuracy is 52.11%, a
+  > 42.44-point generalization gap, and that figure is the honest estimate of performance on
+  > a mill this model has never seen.
+
+  Stating the limit unprompted is what makes the 94.55% headline credible under examination;
+  burying it is what makes it look evasive. The NFR was written against a held-out test
+  split, so 94.55% clears it legitimately — the scoping sentence is what keeps that claim
+  honest rather than what weakens it.
+
+  **What this settles downstream.** Phase 3/4 now only have to demonstrate on-device
+  performance of the main-split model; no extra artefact is needed to evidence cross-source
+  robustness. This is the cheaper path and it protects the Phase 3/4/6 calendar. It also
+  keeps the duplicate-row defect (below) a measure-and-document item rather than a
+  load-bearing one.
+
+- **Phase 3 TFLite conversion spike (2026-09-02) — the deployability risk is CLOSED, and
+  full-integer quantization is ruled out for the selected model.** All three v2 architectures
+  at seed 42, four quantization modes each, `src/training/export_tflite.py`, results in
+  `results/tflite_export_summary.md` + per-run `results/<run>/tflite/`. Run in the `fyp-gpu`
+  WSL venv (TF 2.20 / Keras 3.15.1 / Python 3.12.3).
+
+  **Headline: 12 of 12 conversions succeeded builtin-only. Not one needed the Flex delegate.**
+  The concern that FastViT_T8 — a kecam hybrid CNN-transformer built from custom layers — might
+  only convert via `SELECT_TF_OPS`, and so drag a slice of the TF runtime into the APK, does not
+  materialise. The architecture selected in the v2 campaign is deployable as-is, and Phase 4 can
+  target a stock TFLite interpreter.
+
+  | Model | Mode | Size (MB) | Acc (n=200) | Agreement | Latency (ms) |
+  |---|---|---:|---:|---:|---:|
+  | FastViT_T8 | float32 | 12.1 | 0.920 | 0.990 | 47.7 |
+  | FastViT_T8 | **float16** | **6.1** | **0.925** | 0.970 | **47.2** |
+  | FastViT_T8 | dynamic_int8 | 3.3 | 0.930 | 0.970 | 114.3 |
+  | FastViT_T8 | full_int8 | 3.5 | **0.260** | 0.265 | 136.7 |
+  | EfficientNetB0 | float32 | 15.3 | 0.910 | 1.000 | 22.4 |
+  | EfficientNetB0 | float16 | 7.7 | 0.910 | 1.000 | 23.6 |
+  | EfficientNetB0 | dynamic_int8 | 4.3 | 0.910 | 0.980 | 30.3 |
+  | EfficientNetB0 | full_int8 | 4.7 | **0.645** | 0.660 | 20.3 |
+  | MobileNetV2 | float32 | 8.5 | 0.910 | 0.995 | 12.1 |
+  | MobileNetV2 | float16 | 4.3 | 0.905 | 1.000 | 12.0 |
+  | MobileNetV2 | dynamic_int8 | 2.4 | 0.920 | 0.975 | 16.9 |
+  | MobileNetV2 | full_int8 | 2.6 | 0.915 | 0.960 | 13.4 |
+
+  - **Post-training full-integer int8 is not usable for the two stronger architectures, and the
+    failure tracks architecture, not size.** FastViT collapses to 0.260 — chance on 4 classes —
+    and EfficientNetB0 to 0.645, while MobileNetV2 is untouched at 0.915. This is the textbook
+    pattern: FastViT's normalization/attention activations and EfficientNet's SiLU + squeeze-excite
+    blocks both have dynamic ranges that per-tensor int8 scales cannot represent, whereas
+    MobileNetV2's ReLU6 design was built to quantize. **Quantization robustness runs *inversely*
+    to the accuracy ranking** — the least accurate architecture is the most deployable. Worth a
+    paragraph in the results chapter; it is a real architecture-level trade-off, not a footnote.
+  - **These modes converted cleanly and are the smallest files produced.** A benchmark measuring
+    only size and latency would have selected `full_int8` as the winner for all three. It is the
+    fidelity check that catches it, which is why `export_tflite.py` compares every converted model
+    against its Keras parent rather than treating conversion success as a pass.
+  - **Recommended deployment artefact: FastViT_T8 float16 — 6.1 MB, 47.2 ms, no accuracy cost.**
+    Half the float32 size for no latency penalty. Size is nowhere near binding (6.1 MB against a
+    100 MB budget), so there is no reason to accept dynamic_int8's 2.4x latency penalty to save a
+    further 2.8 MB.
+  - **The pre-quantization dev-CPU latency column in the v2 headline table does not survive
+    conversion and should be dropped rather than corrected.** It reported 142 / 161 / 157 ms for
+    MobileNetV2 / EfficientNetB0 / FastViT — a 1.13x spread. Converted, the same three measure
+    12.1 / 22.4 / 47.7 ms — a **3.9x spread in a different order**. FastViT is the most accurate
+    and the slowest by a wide margin once deployed; the Keras figures concealed that entirely.
+  - **Environment finding worth recording.** Both commonly-documented conversion entry points fail
+    on this stack: `from_saved_model` over a `model.export()` archive dies in the trackable walk
+    ("this `__dict__` descriptor does not support `_DictWrapper` objects", a Python 3.12
+    `inspect.getattr_static` interaction) and `from_keras_model` surfaces the same fault as
+    "'NoneType' object is not callable". Only `from_concrete_functions` works, for all three
+    architectures — so this is a TF/Keras/Python constraint, not a kecam or FastViT problem. The
+    script probes all three routes and records which one worked.
+  - **Separately: `.keras` checkpoints are not portable between this project's two environments.**
+    WSL has Keras 3.15.1, Windows 3.14.1, and the newer one serializes `GlorotUniform` with
+    `input_axes`/`output_axes` that the older rejects. Every checkpoint-loading script is therefore
+    WSL-only. "TF 2.20" alone does not pin the environment; `requirements.txt` still does not pin
+    anything, and does not list `keras_cv_attention_models` at all.
+
+  **What this does NOT establish.** Seed 42 only, not the 3-seed protocol. Fidelity is measured on
+  a 200-image sample sized to compare TFLite against Keras — on that sample the three architectures
+  sit within one point of each other while the full test set separates them by five, so **the
+  accuracy column here must not be read as an architecture comparison**. Latency is single-threaded
+  x86 dev CPU: int8 commonly wins on ARM via XNNPACK/NNAPI, so the float16-over-dynamic_int8 call
+  could reverse on a phone. **The <=2s NFR is still not demonstrated on device** — that remains the
+  open half of Phase 3, and `docs/report_limitations.md` L4 needs rewriting now that the conversion
+  half is done.
+
 ## 9. Open Questions for Supervisors
 
+> **Note (updated 2026-09-02):** the headline-framing question below is **DECIDED** — the
+> thesis headlines the main split (94.55%) and reports the 42.44-point gap explicitly. See the
+> final entry of §8 for the decision and the required scoping wording. It is left in this
+> section, struck through, so the reasoning stays visible; raise it with Dr. Shahreeza as a
+> recorded decision, not as an open question.
+>
 > **Note (updated 2026-09-02):** the v2 campaign landed and the first question below is now
 > **moot for the main split** — all three architectures clear ≥85% there (FastViT_T8 94.55%).
 > It is **live and sharper for the cross-source result**, where the LODO mean is 52.11%,
@@ -620,9 +730,10 @@ Keep the GitHub repo as the source of truth: commit experiment configs and resul
 
 - Is a documented, well-justified accuracy below 85% acceptable if the ripe/underripe ambiguity is shown to be a genuine labeling/visual limitation rather than a modelling failure?
 - Why did EfficientNetB0 gain ~3.3 points moving from the CPU runs (73.07-73.18%, n=2) to the GPU runs (76.45% ± 0.90, n=3), while MobileNetV2 barely moved (73.73-74.17% CPU vs 73.61% ± 0.59 GPU)? With no multi-seed CPU baseline, a genuine backend/numerics interaction cannot be separated from two unlucky CPU runs. It does not affect the architecture conclusion, which is drawn entirely within the GPU campaign — but it should be stated as a limitation rather than glossed over. Cheap resolution if time allows: 3 CPU seeds of EfficientNetB0.
-- **(Sep 2026, now concrete — the highest-priority question for supervisors.)** Main split
-  is **94.55%**; the leave-one-dataset-out mean is **52.11%**. Which is *the* result in the
-  thesis? The NFR (≥85%) was written against a held-out test split, which 94.55% clears
+- **~~(Sep 2026, now concrete — the highest-priority question for supervisors.)~~ DECIDED
+  2026-09-02 — headline the main split, report the gap explicitly; see the final entry of §8.**
+  Main split is **94.55%**; the leave-one-dataset-out mean is **52.11%**. Which is *the* result
+  in the thesis? The NFR (≥85%) was written against a held-out test split, which 94.55% clears
   comfortably — but LODO is the honest estimate of field performance and misses it by 33
   points. Three defensible framings: (a) headline the main split, report LODO as a
   limitation; (b) headline LODO, present the main split as an upper bound under matched

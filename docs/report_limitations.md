@@ -1,5 +1,29 @@
 # Report-ready limitation prose
 
+> # ⚠️ SUPERSEDED IN PART — READ THIS BEFORE DRAFTING FROM THIS FILE (2026-09-02)
+>
+> **Every accuracy figure below dated before Sep 2026 was measured under training recipe v1,
+> which stopped every run before it converged.** The v2 campaign replaced them:
+> FastViT_T8 **94.55% ± 0.31**, EfficientNetB0 **91.26% ± 0.39**, MobileNetV2 **89.62% ± 0.15**.
+> Any "78.72%" or "76.45%" in this file is a v1 number. Do **not** draft the results chapter
+> from those figures — see `PROJECT_PLAN.md` §8 for the current ones.
+>
+> Section-by-section status:
+>
+> | Section | Status |
+> |---|---|
+> | L1 | **Valid.** Argument does not depend on accuracy figures. |
+> | L2 | **Valid**, size corrected below. |
+> | L3 | **Numbers void** (v1); the *argument* that depth is not exactly matched still stands. |
+> | L3b | **Void — do not use.** Its whole case rests on the K=4 depth control, which was measured under v1 where extra unfrozen layers had no budget to adapt. `PROJECT_PLAN.md` §8 explicitly voids that control. Either re-run it under v2 or rewrite L3b to say the depth confound is unresolved. |
+> | L6 | **Numbers void** (v1). Calibration must be refitted on the v2 checkpoints before any calibrated figure is quoted; §8 notes it may now be unnecessary or harmful. |
+> | L4 | **Rewritten 2026-09-02** — the TFLite conversion has now been carried out. |
+> | L5 | **Valid.** |
+>
+> The headline-framing decision is settled (`PROJECT_PLAN.md` §8, 2026-09-02): the thesis
+> headlines the main split (94.55%) and presents the 42.44-point LODO gap explicitly. A
+> limitation register drafted from this file must carry that scoping sentence.
+
 Draft prose for the FYP2 report's limitations / discussion chapters. Kept separate from
 `PROJECT_PLAN.md` §8, which is the decisions *log* (what was decided and why, in engineering
 terms); this file is the *report* register — what a reader and examiner should be told.
@@ -18,7 +42,7 @@ specifically, so its absence must be addressed rather than passed over.
 > Vision Transformer variant, for which MobileViT was proposed. MobileViT could not be
 > evaluated in this project. The obstacle was not computational cost or development time but
 > the absence of any MobileViT checkpoint loadable under the project's software stack
-> (TensorFlow 2.20 / Keras 3.14). Five independent integration routes were attempted, each
+> (TensorFlow 2.20 / Keras 3.15). Five independent integration routes were attempted, each
 > failing for a distinct and reproducible reason: `keras.applications` provides no MobileViT
 > implementation; the TensorFlow Hub module is published only in the legacy TF1-Hub format,
 > which rejects `trainable=True` and so cannot be fine-tuned; the HuggingFace TensorFlow port
@@ -54,7 +78,7 @@ stands alone and Objective 2 is reported as partially met, with two architecture
 > convolution–transformer architecture designed for mobile inference, and therefore satisfies
 > the objective's requirement of a lightweight Vision Transformer variant; MobileViT was
 > named in the plan as an example rather than as a constraint. The FastViT-T8 variant was
-> selected: at 3.20M parameters and 27.0MB it lies between MobileNetV2 (2.26M / 20.9MB) and
+> selected: at 3.20M parameters and 30.2MB it lies between MobileNetV2 (2.26M / 20.9MB) and
 > EfficientNetB0 (4.05M / 33.9MB), so all three architectures occupy a comparable cost band
 > and the comparison is not confounded by model scale.
 >
@@ -165,17 +189,70 @@ most one decimal place, and regenerate the summary rather than citing an older c
 
 ---
 
-## L4 — Two non-functional requirements remain unverified on hardware
+## L4 — Conversion and model size are demonstrated; on-device latency is not
 
-> Of the five non-functional requirements, model size and inference latency have not been
-> verified on a physical device. The figures reported here — 20.9MB / 27.0MB / 33.9MB and
-> 143–161 ms per image — are pre-quantization measurements taken on a development machine, and
-> the latency figures in particular are not comparable across compute environments: the same
-> MobileNetV2 model measures 105 ms natively on Windows and 143 ms under WSL. The TensorFlow
-> Lite conversion and on-device benchmark specified in Phase 3 were not carried out, so the
-> ≤100MB and ≤2s requirements should be regarded as indicated but not demonstrated. All three
-> models sit far enough below the size budget that meeting it is unlikely to be in doubt; the
-> latency requirement is the one genuinely awaiting evidence.
+**Rewritten 2026-09-02.** The previous version of this section stated that "the TensorFlow Lite
+conversion and on-device benchmark specified in Phase 3 were not carried out." The conversion
+half has since been carried out (`src/training/export_tflite.py`,
+`results/tflite_export_summary.md`). Only the on-device half remains outstanding.
+
+> Of the five non-functional requirements, the model-size budget is now demonstrated and the
+> latency budget is not. All three trained architectures were converted to TensorFlow Lite at
+> four quantization settings each. Every one of the twelve conversions succeeded using built-in
+> TensorFlow Lite operators alone, with no recourse to the Flex delegate — a result that matters
+> because the selected architecture, FastViT-T8, is a hybrid convolution-transformer assembled
+> from custom layers, and a Flex-dependent conversion would have required the application to
+> embed a portion of the full TensorFlow runtime. The selected deployment artefact, FastViT-T8
+> quantized to float16, occupies 6.1MB against the 100MB requirement, and the largest artefact
+> produced by any architecture at any setting was 15.3MB. The size requirement is therefore met
+> with a margin of more than an order of magnitude, and is reported as demonstrated rather than
+> indicated.
+>
+> The latency requirement remains unverified. Converted single-image inference was measured at
+> 47.2ms for FastViT-T8, 23.6ms for EfficientNetB0 and 12.0ms for MobileNetV2 at float16,
+> single-threaded on a development CPU. These figures sit three orders of magnitude below the
+> 2-second requirement, but they are not measurements of the target hardware and no claim of
+> compliance is made on their basis. A physical Android benchmark remains outstanding.
+>
+> One methodological consequence of the conversion should be recorded. The pre-quantization
+> latency figures reported in the architecture comparison — 142ms, 161ms and 157ms for
+> MobileNetV2, EfficientNetB0 and FastViT-T8 respectively — proved to be a poor predictor of
+> converted performance. After conversion the same three models measure 12.1ms, 22.4ms and
+> 47.7ms: a 3.9-fold spread where the pre-conversion figures showed 1.13-fold, and in a
+> different rank order. Pre-conversion latency measured in the training framework is therefore
+> not a valid proxy for deployed latency, and is reported here as a superseded measurement
+> rather than as corroborating evidence.
+
+**Companion finding — quantization robustness is architecture-dependent, and it inverts the
+accuracy ranking.** This belongs in the results chapter, not only in the limitations register.
+
+> Post-training full-integer quantization was found to be unusable for the two more accurate
+> architectures. Applied to FastViT-T8 it reduced accuracy to 0.260 on a four-class problem —
+> indistinguishable from chance — and to EfficientNetB0 it gave 0.645, against 0.910 for the
+> unquantized model. MobileNetV2 was unaffected, retaining 0.915. The pattern is consistent
+> with the architectures' activation statistics: FastViT's normalization and attention blocks
+> and EfficientNet's SiLU activations and squeeze-and-excitation branches both produce dynamic
+> ranges that a single per-tensor integer scale cannot represent, whereas MobileNetV2's
+> bounded ReLU6 design was explicitly intended to quantize. Quantization robustness therefore
+> runs inversely to the accuracy ranking established in this project: the least accurate of the
+> three architectures is the most robust to deployment-time compression.
+>
+> This finding also illustrates a methodological point worth stating. All three fully-quantized
+> models converted without error and produced the smallest files of any setting tested. An
+> evaluation measuring only conversion success, file size and latency would have selected the
+> fully-quantized model for all three architectures, including the one performing at chance.
+> The failure is detectable only by comparing the converted model's predictions against those
+> of the model it was derived from, which is why every conversion in this project was verified
+> against its unquantized parent rather than accepted on conversion success alone.
+
+**Caveats to carry with these figures:** the export covers seed 42 only, not the project's
+three-seed protocol; the accuracy column is measured on a 200-image sample sized to compare
+converted against unconverted predictions, on which all three architectures fall within one
+point of each other and which must not be read as an architecture comparison; and latency is
+single-threaded x86, whereas integer arithmetic frequently outperforms float16 on ARM via
+XNNPACK or NNAPI, so the float16 recommendation may not survive an on-device measurement.
+
+*Sources: `results/tflite_export_summary.md`, `results/<run>/tflite/export_report.json`.*
 
 ---
 

@@ -1,5 +1,21 @@
 # Per-class threshold calibration
 
+> ## ⚠️ SUPERSEDED — recipe v1 numbers (banner added 2026-09-02)
+>
+> Every figure in this file was fitted on **recipe v1** checkpoints, whose baselines
+> (EfficientNetB0 76.45%, FastViT_T8 78.72%) were produced by under-trained runs. The v2
+> campaign supersedes them: FastViT_T8 94.55% ± 0.31, EfficientNetB0 91.26% ± 0.39,
+> MobileNetV2 89.62% ± 0.15.
+>
+> Calibration's mechanism here was buying underripe recall at ripe's expense. Under v2 the
+> model already reaches 0.903 underripe recall in training, so calibration may now be
+> unnecessary or actively harmful — see `PROJECT_PLAN.md` §8. **Refit on the v2 checkpoints
+> before quoting any calibrated number.**
+>
+> This banner is hand-added and will be lost when `calibrate_thresholds.py` regenerates the
+> file — which is the intended outcome, since regenerating it is what makes the banner
+> unnecessary.
+
 Fitted on the **validation** split (objective: `accuracy`), applied unchanged to test. Test was never used for fitting; the validation gain is optimistic by construction and is shown alongside so any overfitting is visible.
 
 ## EfficientNetB0 (n=3)

@@ -16,6 +16,9 @@ models/
 *.hdf5
 *.ckpt
 *.cp
+# TFLite exports are derived weights like the rest — regenerate with
+# src/training/export_tflite.py rather than committing ~30MB per model per mode.
+*.tflite
 
 # Python Caches
 __pycache__/
