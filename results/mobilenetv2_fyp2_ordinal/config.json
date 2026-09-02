@@ -1,0 +1,28 @@
+{
+  "architecture": "MobileNetV2-CORAL-ordinal",
+  "run_name": "mobilenetv2_fyp2_ordinal",
+  "manifest": "data\\processed\\manifest_full.csv",
+  "img_size": 224,
+  "batch_size": 32,
+  "epochs_frozen": 10,
+  "epochs_finetune": 10,
+  "finetune_layers": 30,
+  "loss": "CORAL (ordinal, rank-consistent binary thresholds)",
+  "class_weights": {
+    "unripe": 0.9845153298234748,
+    "underripe": 0.9754525928198834,
+    "ripe": 0.8714364035087719,
+    "overripe": 1.2321705426356588
+  },
+  "seed": 42,
+  "class_names": [
+    "unripe",
+    "underripe",
+    "ripe",
+    "overripe"
+  ],
+  "train_seconds": 4411.4,
+  "final_epochs_run_frozen": 10,
+  "final_epochs_run_finetune": 10,
+  "best_val_accuracy": 0.6936606764793396
+}

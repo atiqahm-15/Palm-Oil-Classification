@@ -1,0 +1,5 @@
+condition,accuracy,n_images
+clean_test_baseline,0.730712711241734,2722
+brightened,0.727773695811903,2722
+darkened,0.716017634092579,2722
+shadow,0.7178545187362234,2722

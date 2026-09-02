@@ -1,0 +1,28 @@
+{
+  "architecture": "MobileNetV2",
+  "run_name": "mobilenetv2_fyp2_baseline",
+  "manifest": "data\\processed\\manifest_full.csv",
+  "img_size": 224,
+  "batch_size": 32,
+  "epochs_frozen": 10,
+  "epochs_finetune": 10,
+  "finetune_layers": 30,
+  "label_smoothing": 0.15,
+  "class_weights": {
+    "unripe": 0.9845153298234748,
+    "underripe": 0.9754525928198834,
+    "ripe": 0.8714364035087719,
+    "overripe": 1.2321705426356588
+  },
+  "seed": 42,
+  "class_names": [
+    "unripe",
+    "underripe",
+    "ripe",
+    "overripe"
+  ],
+  "train_seconds": 3486.7,
+  "final_epochs_run_frozen": 7,
+  "final_epochs_run_finetune": 10,
+  "best_val_accuracy": 0.7438622117042542
+}

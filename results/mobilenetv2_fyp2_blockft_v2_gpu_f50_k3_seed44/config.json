@@ -1,0 +1,56 @@
+{
+  "architecture": "MobileNetV2",
+  "run_name": "mobilenetv2_fyp2_blockft_v2_gpu_f50_k3_seed44",
+  "manifest": "data/processed/manifest_full.csv",
+  "img_size": 224,
+  "batch_size": 32,
+  "epochs_frozen": 50,
+  "epochs_finetune": 40,
+  "recipe_version": 2,
+  "epochs_frozen_cap": 50,
+  "epochs_finetune_cap": 40,
+  "frozen_lr": 0.001,
+  "finetune_lr": 0.0001,
+  "lr_schedule": "cosine",
+  "early_stopping_patience": 8,
+  "steps_per_epoch": 398,
+  "converged_frozen": true,
+  "converged_finetune": true,
+  "finetune_blocks": 3,
+  "finetune_detail": {
+    "n_blocks_unfrozen": 3,
+    "total_blocks": 16,
+    "first_unfrozen_block": "14",
+    "layers_unfrozen": 29,
+    "total_layers": 154
+  },
+  "label_smoothing": 0.15,
+  "class_weights": {
+    "unripe": 0.9845153298234748,
+    "underripe": 0.9754525928198834,
+    "ripe": 0.8714364035087719,
+    "overripe": 1.2321705426356588
+  },
+  "seed": 44,
+  "class_names": [
+    "unripe",
+    "underripe",
+    "ripe",
+    "overripe"
+  ],
+  "compute_platform": {
+    "device": "GPU",
+    "gpu_names": [
+      "NVIDIA GeForce RTX 4050 Laptop GPU"
+    ],
+    "n_gpus": 1,
+    "tf_version": "2.20.0",
+    "os": "Linux",
+    "os_release": "6.6.114.1-microsoft-standard-WSL2",
+    "python": "3.12.3"
+  },
+  "train_seconds": 1581.0,
+  "final_epochs_run_frozen": 19,
+  "final_epochs_run_finetune": 36,
+  "best_val_accuracy": 0.9039941430091858
+}

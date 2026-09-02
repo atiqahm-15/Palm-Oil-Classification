@@ -1,0 +1,36 @@
+{
+  "architecture": "MobileNetV2",
+  "run_name": "mobilenetv2_fyp2_bn_unfrozen",
+  "manifest": "data\\processed\\manifest_full.csv",
+  "img_size": 224,
+  "batch_size": 32,
+  "epochs_frozen": 10,
+  "epochs_finetune": 10,
+  "finetune_blocks": 3,
+  "finetune_detail": {
+    "n_blocks_unfrozen": 3,
+    "total_blocks": 16,
+    "first_unfrozen_block": "14",
+    "layers_unfrozen": 29,
+    "total_layers": 154
+  },
+  "label_smoothing": 0.15,
+  "class_weights": {
+    "unripe": 0.9845153298234748,
+    "underripe": 0.9754525928198834,
+    "ripe": 0.8714364035087719,
+    "overripe": 1.2321705426356588
+  },
+  "seed": 42,
+  "class_names": [
+    "unripe",
+    "underripe",
+    "ripe",
+    "overripe"
+  ],
+  "train_seconds": 4093.1,
+  "final_epochs_run_frozen": 10,
+  "final_epochs_run_finetune": 10,
+  "best_val_accuracy": 0.7390985488891602,
+  "run_note": "Originally launched as a block-level fine-tuning test, but the same edit accidentally un-pinned training=False on the backbone call, letting BatchNorm update its statistics during Stage 2 instead of using frozen ImageNet moving stats. Since the block unfreeze depth (29 layers) is within 1 layer of the baseline layer-count scheme (30), this run is effectively an unintended ablation of BatchNorm mode, NOT a test of block-level fine-tuning. Renamed accordingly. Result: 72.30% test accuracy vs the baseline 73.73%."
+}

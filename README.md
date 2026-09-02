@@ -17,8 +17,8 @@ The core architecture uses **MobileNetV2** configured for Transfer Learning. Mob
 *   **Stage 2 (Fine-Tuning):** The final 30 layers of MobileNetV2 are unfrozen and trained with a very low learning rate (`1e-5`) to adapt the pretrained ImageNet features to palm oil specific textures.
 
 ## Project Structure
-This repository contains the main notebook `palm_oil_ripeness.ipynb` which trains the production model exported for the mobile app.
-*   **Accuracy:** ~64.5% (refer to the `results/` folder for full metrics)
+This repository contains the main notebook `src/palm_oil_ripeness.ipynb` which trains the production model exported for the mobile app.
+*   **Accuracy:** ~64.5% (refer to `results/mobilenetv2_baseline_fyp1/` for full metrics)
 *   **Key Feature:** Uses **Label Smoothing (`0.15`)**. Because the visual boundary between "Ripe" and "Underripe" is highly subjective, Label Smoothing intentionally makes the model cautious on borderline cases. 
 *   **Result:** This model is exceptionally stable and virtually immune to real-world lighting variations (tested under +/- 30% artificial brightness).
 

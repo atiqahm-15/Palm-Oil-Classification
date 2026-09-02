@@ -1,0 +1,13 @@
+Accuracy: 0.7641
+ROC-AUC (OvR): 0.9325
+
+              precision    recall  f1-score   support
+
+      unripe      0.794     0.892     0.840       692
+   underripe      0.698     0.444     0.543       698
+        ripe      0.685     0.858     0.762       780
+    overripe      0.922     0.877     0.899       552
+
+    accuracy                          0.764      2722
+   macro avg      0.775     0.768     0.761      2722
+weighted avg      0.764     0.764     0.753      2722

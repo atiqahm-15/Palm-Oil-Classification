@@ -1,0 +1,6 @@
+metric,value
+accuracy,0.43455455773662877
+roc_auc_ovr,0.7331376130901586
+n_params,3197668
+model_size_mb_prequant,30.183995246887207
+avg_inference_s_devcpu,0.15404905796051024

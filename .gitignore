@@ -1,6 +1,13 @@
-# Datasets
+# Datasets (raw + derived images only — data/README.md and manifests stay tracked)
 dataset/
-data/
+data/raw/
+# Ignore the derived image trees, but keep the split manifests — they define every
+# train/valid/test and LODO fold and are required to reproduce any run.
+data/processed/*
+!data/processed/*.csv
+!data/processed/lodo/
+data/processed/lodo/*
+!data/processed/lodo/*.csv
 
 # Model Checkpoints and Weights
 models/
