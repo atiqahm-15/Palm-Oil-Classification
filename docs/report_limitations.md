@@ -1,12 +1,17 @@
 # Report-ready limitation prose
 
-> # ⚠️ SUPERSEDED IN PART — READ THIS BEFORE DRAFTING FROM THIS FILE (2026-09-02)
+> # ⚠️ READ THIS BEFORE DRAFTING FROM THIS FILE (updated 2026-09-03)
 >
-> **Every accuracy figure below dated before Sep 2026 was measured under training recipe v1,
-> which stopped every run before it converged.** The v2 campaign replaced them:
-> FastViT_T8 **94.55% ± 0.31**, EfficientNetB0 **91.26% ± 0.39**, MobileNetV2 **89.62% ± 0.15**.
-> Any "78.72%" or "76.45%" in this file is a v1 number. Do **not** draft the results chapter
-> from those figures — see `PROJECT_PLAN.md` §8 for the current ones.
+> **Every section is now current against recipe v2.** The headline figures are FastViT_T8
+> **94.55% ± 0.31**, EfficientNetB0 **91.26% ± 0.39**, MobileNetV2 **89.62% ± 0.15**.
+>
+> Recipe-v1 numbers still appear in two places, both deliberately and both labelled as
+> superseded in the surrounding text: the falsified depth control in L3b, and the contrast
+> figures in L6 that show what calibration used to be worth. Do not lift either out of its
+> context — the point of each is that it *no longer holds*.
+>
+> **One section reversed rather than merely aged: L3b.** If you drafted anything from an earlier
+> copy of this file, that passage now argues the opposite conclusion. Re-derive it.
 >
 > Section-by-section status:
 >
@@ -14,9 +19,9 @@
 > |---|---|
 > | L1 | **Valid.** Argument does not depend on accuracy figures. |
 > | L2 | **Valid**, size corrected below. |
-> | L3 | **Numbers void** (v1); the *argument* that depth is not exactly matched still stands. |
-> | L3b | **Void — do not use.** Its whole case rests on the K=4 depth control, which was measured under v1 where extra unfrozen layers had no budget to adapt. `PROJECT_PLAN.md` §8 explicitly voids that control. Either re-run it under v2 or rewrite L3b to say the depth confound is unresolved. |
-> | L6 | **Numbers void** (v1). Calibration must be refitted on the v2 checkpoints before any calibrated figure is quoted; §8 notes it may now be unnecessary or harmful. |
+> | L3 | **Rewritten 2026-09-03** on the v2 depth measurement (EfficientNetB0 K=3 → K=4). Its v1 measured result (FastViT K=2 vs K=3) is void and has no v2 equivalent — see the note in the section. |
+> | L3b | **Rewritten 2026-09-03 — and its earlier conclusion was REVERSED.** The v1 K=4 control that closed this question turned out to be an under-training artifact; re-run under v2 it gives +1.47 rather than −0.42. About 45% of the apparent architecture margin is fine-tuning depth. Do not quote any pre-Sep-2026 version of this section. |
+> | L6 | **Rewritten 2026-09-03** on the v2 refit. Calibration is now redundant rather than harmful: +0.21 for the selected model against a ±0.31 seed spread. The headline stays uncalibrated. |
 > | L4 | **Rewritten 2026-09-02** — the TFLite conversion has now been carried out. |
 > | L5 | **Valid.** |
 >
@@ -113,79 +118,154 @@ being asked.
 > reported as the primary result, while the second setting quantifies how sensitive FastViT
 > actually is to fine-tuning depth — converting a potential confound into a measured effect.
 
-**Measured result, for the discussion chapter:**
+**Measured result, for the discussion chapter.** *Rewritten 2026-09-03.* The previous version of
+this passage quantified depth using FastViT at K=2 versus K=3 (+2.77 points). Those runs were
+made under recipe v1 and are void; FastViT was not re-run at K=2 under v2, so there is no
+like-for-like replacement for that particular measurement. The depth effect is instead quantified
+from the EfficientNetB0 K=3 → K=4 control run under v2, which is the measurement that exists.
 
-> Fine-tuning depth proved to have a larger effect on accuracy than the choice of architecture.
-> Increasing FastViT's unfrozen depth from two blocks (15.4% of layers) to three (28.0%)
-> improved test accuracy from 75.95% ± 0.43 to 78.72% ± 0.22 — a gain of 2.77 percentage
-> points against a combined run-to-run spread of ±0.65, and an improvement on every measured
-> axis simultaneously: macro F1 (0.754 → 0.786), underripe recall (0.422 → 0.509), stability
-> under the lighting stress test (1.90 → 1.47 points of spread), and inference latency
-> (160.6ms → 150.5ms). By comparison, the largest architecture gap measured under a fixed
-> recipe was 2.84 points. Fine-tuning depth is therefore not a minor hyperparameter in this
-> setting, and reporting an architecture comparison without controlling for it would risk
-> attributing a recipe effect to the architecture.
+> Fine-tuning depth proved to have an effect on accuracy comparable to the choice of
+> architecture. Increasing EfficientNetB0's unfrozen depth from three blocks (19.4% of its
+> layers) to four (25.7%) improved test accuracy from 91.26% ± 0.39 to 92.73% ± 0.37 — a gain of
+> 1.47 percentage points against a combined run-to-run spread of ±0.76, with no seed at the
+> shallower setting reaching any seed at the deeper one. The gain was not confined to aggregate
+> accuracy: recall on underripe, the weakest class throughout this project, rose from 0.796 to
+> 0.831, and stability under the lighting stress test tightened from 2.45 to 1.33 points of
+> spread. For comparison, the accuracy gap between EfficientNetB0 and MobileNetV2 — two
+> architectures that expose the same number of blocks and are therefore directly comparable at
+> a shared K — is 1.64 points. A single step of fine-tuning depth is worth about as much as the
+> difference between two architectures. Depth is therefore not a minor hyperparameter in this
+> setting, and an architecture comparison that does not control for it risks attributing a
+> recipe effect to the architecture.
+
+*Sources: `results/multiseed_v2_summary.md`, `results/effnet_depth_k4_v2_summary.md`.*
 
 ---
 
-## L3b — The strongest result is depth-confounded, and is reported as such
+## L3b — Part of the architecture margin is fine-tuning depth, and the earlier control was an artifact
 
 **This is the single most important honesty point in the results chapter.** Write it
-immediately after any mention of the 78.72% figure.
+immediately after any presentation of 94.55% as an *architecture* result.
 
-> The best single configuration obtained in this project is FastViT-T8 fine-tuned at three
-> blocks, reaching 78.72% ± 0.22 test accuracy and exceeding EfficientNetB0's 76.45% ± 0.90 by
-> a margin larger than the combined run-to-run spread. This result must be qualified. At that
-> setting FastViT is fine-tuned to 28.0% of its layers, whereas both convolutional baselines
-> were trained at approximately 19%. The margin may therefore reflect fine-tuning depth rather
-> than architecture, particularly given that depth was shown above to produce larger effects
-> than architecture in this setting.
+*Rewritten 2026-09-03. The previous version of this section reached the opposite conclusion —
+that EfficientNetB0 gained nothing from extra depth and that FastViT's advantage therefore
+survived the control intact. That conclusion rested on a control run under recipe v1 and did not
+survive re-running under v2. Do not quote any earlier version.*
+
+> The best configuration obtained in this project is FastViT-T8 fine-tuned at three blocks,
+> reaching 94.55% ± 0.31 test accuracy against EfficientNetB0's 91.26% ± 0.39 and MobileNetV2's
+> 89.62% ± 0.15 at the same nominal setting. That comparison overstates the architectural
+> difference, because the same block count is not the same proportional depth. FastViT-T8
+> exposes ten blocks against sixteen for each convolutional baseline, so K=3 unfreezes 28.0% of
+> FastViT's layers but only 19.4% of EfficientNetB0's and 18.8% of MobileNetV2's. The margin may
+> therefore reflect fine-tuning depth rather than architecture, particularly given that depth was
+> shown above to produce effects comparable in size to the architecture gap itself.
 >
-> A control was therefore run to separate the two: EfficientNetB0 at K=4, unfreezing 25.7% of
-> its layers, the closest available match to FastViT's 28.0%. EfficientNetB0 did not benefit
-> from the additional depth, reaching 76.03% ± 1.12 against 76.45% ± 0.90 at K=3 — a change of
-> −0.42 points, well within run-to-run variation. FastViT's sensitivity to fine-tuning depth is
-> therefore not a general property of the training recipe but specific to that architecture, and
-> at comparable depth FastViT leads EfficientNetB0 by 2.69 points against a combined spread of
-> ±1.34. The advantage survives the control and is attributed to the architecture.
+> A control was run to separate the two. EfficientNetB0 was retrained at K=4 — 25.7% of its
+> layers, the closest available match to FastViT's 28.0% — at three seeds under an otherwise
+> identical recipe. It reached 92.73% ± 0.37, an improvement of 1.47 points over the same
+> architecture at K=3, with no seed at the shallower setting reaching any seed at the deeper one.
+> **At comparable fine-tuning depth, FastViT-T8's advantage over EfficientNetB0 is 1.82 points
+> rather than the 3.29 points implied by the same-K comparison. Approximately 45% of the apparent
+> architectural advantage is attributable to fine-tuning depth rather than to architecture.** The
+> remaining 1.82 points exceed the combined run-to-run spread of ±0.68, and that residual is
+> attributed to the architecture.
+
+**The falsified control — include this; it is a methodological contribution, not an admission.**
+
+> This control was run once before, under the project's earlier training schedule, and produced
+> the opposite result: EfficientNetB0 at K=4 scored 0.42 points *below* K=3, comfortably within
+> run-to-run variation. That measurement supported a conclusion that sensitivity to fine-tuning
+> depth was specific to the hybrid transformer and that the architecture margin survived the
+> control undiminished. The finding is now known to be an artifact. The earlier schedule halted
+> every run at a fixed epoch cap before convergence, so the additional unfrozen layers had no
+> remaining training budget in which to adapt; the control could not have detected a depth effect
+> had one been present. It is reported here as a superseded measurement.
 >
-> This asymmetry is itself a finding worth reporting: the hybrid transformer improves
-> substantially when more of its backbone is unfrozen, while the convolutional baseline is
-> already saturated at the shallower setting. A plausible reading is that FastViT's later blocks
-> retain more ImageNet-specific representation, and so gain more from adaptation to this domain —
-> though this project does not test that explanation directly.
->
-> A residual mismatch of approximately 2.3 percentage points of depth remains even in the
-> control, because neither architecture's block grid lands on the other's proportion:
-> EfficientNetB0 steps 19.4% → 25.7% → 31.6% as K increases, and FastViT steps 15.4% → 28.0%.
-> Exact depth matching is not achievable with block-level granularity across architectures with
-> different block counts, and this is stated rather than smoothed over.
+> The episode illustrates a point that generalises beyond this project. An ablation inherits the
+> validity of the recipe it is run under: a control executed on an under-trained pipeline measures
+> the under-training, not the variable it was designed to isolate. Because the defect suppressed
+> the treatment effect rather than producing an implausible number, the result appeared clean and
+> was accepted. It was caught only because the recipe was later corrected for unrelated reasons
+> and every dependent conclusion was re-derived rather than carried forward.
+
+**Residual limitation — state it; it cuts against the result and pre-empts the obvious question.**
+
+> Depth is still not exactly matched, and cannot be. EfficientNetB0's block grid steps
+> 19.4% → 25.7% → 31.6% as K increases, while FastViT's steps 15.4% → 28.0%, so the closest
+> available pairing leaves a residual mismatch of roughly 2.3 percentage points — with the
+> convolutional baseline on the shallower side. That mismatch is not neutral: EfficientNetB0 was
+> still gaining accuracy as depth increased rather than having saturated, so the residual favours
+> FastViT. The 1.82-point margin should therefore be read as an upper bound on the architectural
+> contribution rather than as a point estimate. Testing EfficientNetB0 at K=5 (31.6%), which would
+> bracket FastViT's depth from above, is the natural next control and was not carried out.
+
+*Sources: `results/multiseed_v2_summary.md`, `results/effnet_depth_k4_v2_summary.md`,
+`src/training/finetune.py` (the measured layer-proportion table), `PROJECT_PLAN.md` §8.*
 
 ---
 
-## L6 — Calibration helps the final model, but most of its apparent gain does not generalise
+## L6 — Calibration was a remedy for an under-trained model, and the corrected recipe made it redundant
 
-> Per-class threshold calibration was applied to all three architectures, with the weights fitted
-> on the validation split alone and applied unchanged to the test split. For the selected model,
-> FastViT-T8 at K=3, calibration raised test accuracy from 78.72% ± 0.22 to 79.17% ± 0.26. This
-> gain should be interpreted cautiously: the same procedure produced a 2.09-point improvement on
-> the validation split it was fitted to, so approximately 1.64 points did not transfer. By
-> contrast, EfficientNetB0's calibration gain generalised considerably better (+1.73 on validation
-> against +1.41 on test), and MobileNetV2's vanished entirely.
+*Rewritten 2026-09-03 against the v2 refit (`results/calibration_v2_summary.md`). The previous
+version reported calibration as a "modest, zero-cost refinement" worth +0.45 points on the
+selected model. Those figures were fitted on recipe-v1 checkpoints and are void.*
+
+> Per-class threshold calibration was applied to all three architectures, with weights fitted on
+> the validation split alone and applied unchanged to the test split. Under the corrected
+> training schedule the procedure yields a gain of 0.21 points for the selected model,
+> FastViT-T8, raising test accuracy from 94.55% ± 0.31 to 94.76% ± 0.20. **That gain is smaller
+> than the model's own seed-to-seed standard deviation.** Calibration is therefore reported as
+> having no effect on the selected model that can be distinguished from run-to-run variance, and
+> the model carried forward to deployment is the uncalibrated one.
 >
-> The mechanism is consistent across architectures: calibration substantially recovers underripe
-> recall — for FastViT, from 0.510 to 0.681 — but pays for it out of an adjacent class, in this
-> case ripe (0.863 to 0.743). For FastViT that exchange is close to break-even, which is why the
-> net accuracy gain is small despite a large shift in the confusion structure. Calibration is
-> therefore reported as a modest, zero-cost refinement of the operating point rather than as an
-> independent contribution to accuracy.
+> The reason is visible in the mechanism. Calibration works by trading recall between adjacent
+> classes, so its value depends entirely on there being a badly-served class to trade toward.
+> Under the earlier training schedule, FastViT-T8's underripe recall was 0.510; calibration
+> raised it to 0.681 at a cost of 0.120 in ripe recall — a large change in the confusion
+> structure for a net accuracy gain of 0.45 points. Under the corrected schedule underripe recall
+> arrives at 0.904 with no calibration at all, and the same fitted procedure moves it by only
+> 0.021. There is very little left for the technique to recover.
+>
+> The pattern across architectures is consistent with that account, though it is not a clean
+> ordering. The two convolutional baselines, whose uncalibrated underripe recall sits near 0.79,
+> gain more from calibration — 0.55 points for EfficientNetB0 and 0.29 for MobileNetV2 — than
+> FastViT-T8 does at 0.904 underripe recall, which gains 0.21. The technique is worth least to
+> the model with the least room to recover, which is also the model selected for deployment. The
+> difference between the two convolutional baselines is not explained by this account: their
+> underripe recalls differ by 0.003 while their calibration gains differ by 0.26 points, so that
+> spread is better attributed to the variance of the fitting procedure than to any property of
+> the architectures. Notably calibration is no longer harmful to any architecture — under the
+> earlier schedule it cost MobileNetV2 0.24 points — so correcting the training schedule did not
+> merely shrink the technique's benefit, it removed the conditions under which the technique
+> mattered in either direction.
+>
+> As a methodological note, roughly two-thirds of the fitted gain does not transfer: FastViT-T8
+> improves by 0.60 points on the validation split the weights were fitted to, against 0.21 on the
+> held-out test split. Both are reported, because the difference between them is the measure of
+> how far the fitting procedure overfits its own objective, and quoting only the validation figure
+> would misrepresent the technique.
 
-*Sources: `results/calibration_summary.md`, `results/calibration/*.json`.*
+**Why this is reported rather than dropped.** Calibration is a negative result, and it is worth
+the space because it corroborates the project's central finding from an independent direction: a
+technique introduced specifically to compensate for poor underripe recall becomes superfluous once
+the training schedule is fixed. That is evidence that under-training, rather than a modelling or
+data limitation, was the binding constraint. Presenting it as a failed improvement would understate
+it.
+
+**Do not deploy the calibrated variant.** Beyond the gain being inside the noise, quoting 94.76%
+would oblige the deployed pipeline to carry per-class threshold weights through the TensorFlow Lite
+export and apply them at inference, adding a step to the mobile path for a benefit that cannot be
+measured reliably.
+
+*Sources: `results/calibration_v2_summary.md`, `results/calibration_v2/*.json`. The v1 figures are
+retained for contrast in `results/calibration_summary.md` and `results/calibration/*.json`.*
 
 **Reproducibility caveat to include:** re-running calibration on identical EfficientNetB0
 checkpoints produced +1.41 where an earlier run produced +1.52. Only the inference pass differed,
 so this is GPU nondeterminism propagating into the fitted weights. Quote calibration deltas to at
-most one decimal place, and regenerate the summary rather than citing an older copy.
+most one decimal place, and regenerate the summary rather than citing an older copy. This applies
+with more force to the v2 figures, whose deltas are several times smaller than the v1 ones.
 
 ---
 
