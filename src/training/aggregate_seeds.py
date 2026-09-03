@@ -119,6 +119,11 @@ def main():
                              "table needs e.g. \"*_blockft_gpu_seed*\" plus "
                              "\"fastvit_*_gpu_k2_seed*\" — which also keeps the k3 runs out.")
     parser.add_argument("--out-prefix", type=Path, default=Path("results/multiseed"))
+    parser.add_argument("--force", action="store_true",
+                        help="overwrite an --out-prefix whose existing summary was "
+                             "built from a DIFFERENT --pattern. Without this the "
+                             "aggregate refuses, because that combination means one "
+                             "campaign is about to be written over another's.")
     parser.add_argument("--allow-mixed-platform", action="store_true",
                         help="pool runs from different compute backends anyway (confounded - "
                              "only for deliberate CPU-vs-GPU comparisons)")
@@ -133,7 +138,28 @@ def main():
                              "be reported as separate groups, not averaged together)")
     args = parser.parse_args()
 
+    # This script already refuses to POOL runs across backends, recipes and depths.
+    # Its OUTPUT path had no equivalent guard: --out-prefix defaults to
+    # results/multiseed, so aggregating any campaign without passing it silently
+    # overwrites whichever campaign wrote there last. That is the same class of
+    # error the pooling guards exist to prevent, one step further down the pipeline.
+    # Compare the pattern recorded in an existing summary against this run's.
+
     pattern_desc = ", ".join(args.pattern)
+    existing_md = args.out_prefix.with_name(args.out_prefix.name + "_summary.md")
+    if existing_md.exists() and not args.force:
+        prior = existing_md.read_text(encoding="utf-8")
+        marker = f"Pooled from `results/{{{pattern_desc}}}`"
+        if "Pooled from `results/" in prior and marker not in prior:
+            prior_line = next(l for l in prior.splitlines() if l.startswith("Pooled from"))
+            raise SystemExit("\n".join([
+                f"{existing_md} was built from a different pattern:",
+                f"  existing: {prior_line}",
+                f"  this run: Pooled from `results/{{{pattern_desc}}}`",
+                "Writing here would overwrite another campaign's aggregate. Pass a distinct",
+                "--out-prefix (e.g. results/<arch>_depth_k4_v2), or --force if replacing it",
+                "is genuinely intended.",
+            ]))
     # dict.fromkeys over the globs de-duplicates a directory matched by more than one pattern,
     # which would otherwise be counted twice in the mean.
     run_dirs = sorted(dict.fromkeys(

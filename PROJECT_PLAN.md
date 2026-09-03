@@ -59,8 +59,12 @@ Calibration is now refit on v2 (see §8): the gain shrinks to +0.21 points for t
 model against a ±0.31 seed spread, so the headline stays **uncalibrated** and figure 10 is
 regenerated. **Every figure in `results/figures/` is now a v2 figure.**
 
-One item remains open and needs a decision before the results chapter is drafted, not after:
-**the fine-tuning-depth confound is unresolved under v2.**
+The fine-tuning-depth confound is now controlled (see §8), and the answer changes the
+discussion chapter: EfficientNetB0 gains **+1.47 points** from the extra depth under v2, where
+under v1 it gained nothing. At comparable depth FastViT_T8 still leads, but by **1.82 points
+rather than 3.29** — roughly **45% of the apparent architecture gap was depth**. The headline
+is unaffected; the *attribution* is. `docs/report_limitations.md` **L3b is now wrong, not just
+void, and must be rewritten** — its central claim is the falsified v1 control.
 Note that the v2 campaign being uniformly K=3 does *not* resolve it: K counts blocks, and
 FastViT_T8 has ten blocks against sixteen for both CNNs, so K=3 unfreezes 28.0% of FastViT's
 layers against ~19% for MobileNetV2 and EfficientNetB0. That is precisely the mismatch
@@ -844,6 +848,45 @@ Keep the GitHub repo as the source of truth: commit experiment configs and resul
   the corrected training recipe made redundant — which supports the project's central finding
   rather than competing with it. `docs/report_limitations.md` L6 needs rewriting on this basis;
   its v1 numbers are void.
+
+- **Depth control re-run under v2 (2026-09-03) — the v1 control was an under-training
+  artifact, and roughly 45% of the apparent architecture gap is fine-tuning depth. L3b must be
+  rewritten.** `results/effnet_depth_k4_v2_summary.md`, runs
+  `efficientnetb0_fyp2_blockft_v2_gpu_f50_k4_seed{42,43,44}`. 121 min, 3/3 succeeded.
+
+  EfficientNetB0 at K=4 (25.7% of layers unfrozen), the closest available match to FastViT_T8's
+  K=3 (28.0%), everything else identical to the v2 campaign.
+
+  | Configuration | Layers unfrozen | Test accuracy | Per-seed |
+  |---|---:|---:|---|
+  | EfficientNetB0 K=3 | 19.4% | 91.26 ± 0.39 | 91.55 / 91.40 / 90.82 |
+  | **EfficientNetB0 K=4** | **25.7%** | **92.73 ± 0.37** | 92.73 / 92.36 / 93.09 |
+  | FastViT_T8 K=3 (selected) | 28.0% | 94.55 ± 0.31 | — |
+
+  - **The v1 finding is falsified.** Under v1, EfficientNetB0 at K=4 scored -0.42 points against
+    K=3 — within noise — which is what licensed L3b's claim that depth sensitivity was specific
+    to FastViT and that the architecture advantage survived the control. Under v2 the same
+    control gives **+1.47 points**, with per-seed ranges that do not overlap at all
+    (90.82-91.55 vs 92.36-93.09). The v1 result was an artifact of stopping every run before
+    convergence: extra unfrozen layers had no epoch budget in which to adapt, so of course they
+    bought nothing. Re-running the control was the right call.
+  - **The architecture conclusion survives, but the margin nearly halves.** At comparable depth
+    FastViT_T8 leads EfficientNetB0 by **1.82 points** (94.55 vs 92.73) against a combined
+    spread of ±0.68 — still outside the noise, so FastViT is still genuinely the better
+    architecture here. But the naive same-K comparison put the gap at 3.29 points, so
+    **about 45% of the apparent architecture advantage was fine-tuning depth, not architecture.**
+    Any sentence in the report attributing the full 3.29 points to the architecture is wrong.
+  - **Depth also improves what the report cares about most.** EfficientNetB0's underripe recall
+    — the project's persistent weak class — rises 0.796 → 0.831 at K=4, and its lighting spread
+    tightens from 2.45 to 1.33 points. Depth is not a pure accuracy knob.
+  - **Cost side, for the trade-off table:** K=4 raises pre-quantization size 33.9 → 38.4 MB and
+    training time 31.9 → 40.4 min/run. Both irrelevant against the 100 MB NFR.
+
+  **Residual limitation, to state rather than smooth over.** Depth is still not exactly matched:
+  25.7% against 28.0%, about 2.3 points apart, and EfficientNetB0 is evidently still gaining as
+  depth increases rather than having saturated. A K=5 run (31.6%) would bracket FastViT from
+  above and is the natural next control if time allows — without it, the honest claim is that
+  FastViT leads at the closest matchable depth, not at an exactly matched one.
 
 ## 9. Open Questions for Supervisors
 
