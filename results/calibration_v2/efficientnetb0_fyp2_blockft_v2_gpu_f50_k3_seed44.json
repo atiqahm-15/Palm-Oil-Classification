@@ -1,0 +1,44 @@
+{
+  "run_name": "efficientnetb0_fyp2_blockft_v2_gpu_f50_k3_seed44",
+  "architecture": "EfficientNetB0",
+  "seed": 44,
+  "objective": "accuracy",
+  "weights": {
+    "unripe": 0.5769498103804865,
+    "underripe": 1.0,
+    "ripe": 0.5769498103804865,
+    "overripe": 0.5769498103804865
+  },
+  "valid_baseline": {
+    "accuracy": 0.9113228288750458,
+    "macro_f1": 0.9128428923246575,
+    "recall_unripe": 0.9451659451659452,
+    "recall_underripe": 0.7939914163090128,
+    "recall_ripe": 0.9451530612244898,
+    "recall_overripe": 0.969258589511754
+  },
+  "valid_calibrated": {
+    "accuracy": 0.9215829974349579,
+    "macro_f1": 0.9238325859809224,
+    "recall_unripe": 0.9321789321789322,
+    "recall_underripe": 0.8812589413447782,
+    "recall_ripe": 0.9221938775510204,
+    "recall_overripe": 0.9584086799276673
+  },
+  "test_baseline": {
+    "accuracy": 0.90852314474651,
+    "macro_f1": 0.9096654165340439,
+    "recall_unripe": 0.9407514450867052,
+    "recall_underripe": 0.7851002865329513,
+    "recall_ripe": 0.95,
+    "recall_overripe": 0.9655797101449275
+  },
+  "test_calibrated": {
+    "accuracy": 0.917340191036003,
+    "macro_f1": 0.9197822993180754,
+    "recall_unripe": 0.9176300578034682,
+    "recall_underripe": 0.8767908309455588,
+    "recall_ripe": 0.9230769230769231,
+    "recall_overripe": 0.9601449275362319
+  }
+}

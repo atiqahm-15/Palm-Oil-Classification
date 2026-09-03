@@ -43,8 +43,22 @@ GRIDLINE = "#e1e0d9"
 AXIS = "#c3c2b7"
 
 CATEGORICAL = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100"]  # blue, orange, aqua, yellow
-MODEL_COLOR = {"baseline": CATEGORICAL[0], "ordinal": CATEGORICAL[1]}
-MODEL_LABEL = {"baseline": "Categorical (baseline)", "ordinal": "CORAL (ordinal)"}
+# Runs used to be distinguished by `kind` -- "baseline" vs "ordinal" -- because the FYP1-era
+# question these figures were built for was categorical vs CORAL on a single architecture.
+# The v2 campaign compares three architectures instead, all of them categorical, so keying
+# colour and label on `kind` silently collapsed every run onto a single entry. Runs are now
+# keyed by run_name and labelled from their own config.json.
+ARCH_COLOR = {
+    "EfficientNetB0": CATEGORICAL[0],
+    "MobileNetV2": CATEGORICAL[1],
+    "FastViT_T8": CATEGORICAL[2],
+}
+KIND_SUFFIX = {"ordinal": " (CORAL ordinal)", "baseline": ""}
+
+
+def run_label(config: dict, kind: str) -> str:
+    """Display label for a run: its architecture, marked if it is an ordinal-head variant."""
+    return f"{config['architecture']}{KIND_SUFFIX.get(kind, '')}"
 
 # Ordinal ramp steps 250/400/550/700 (light->dark), unripe->overripe: less ripe = lighter.
 CLASS_RAMP = ["#86b6ef", "#3987e5", "#1c5cab", "#0d366b"]
@@ -124,6 +138,9 @@ def load_run(run_name: str, manifest_path: Path) -> dict | None:
 
     return {
         "run_name": run_name, "kind": kind, "config": config, "history": history,
+        "label": run_label(config, kind),
+        "color": ARCH_COLOR.get(config["architecture"], INK_MUTED),
+        "finetune_blocks": config.get("finetune_blocks"),
         "test_rows": test_rows, "labels": labels, "preds": preds, "probs": probs,
         "accuracy": accuracy, "roc_auc": roc_auc, "cm": cm, "lighting": lighting,
     }
@@ -198,7 +215,7 @@ def fig_confusion_matrices(runs: list[dict], out_dir: Path):
                 ax.text(j, i, str(cm[i, j]), ha="center", va="center", color=color, fontsize=9)
         ax.set_xlabel("Predicted")
         ax.set_ylabel("True")
-        ax.set_title(f"{MODEL_LABEL[run['kind']]}\naccuracy={run['accuracy']:.3f}",
+        ax.set_title(f"{run['label']}\naccuracy={run['accuracy']:.3f}",
                       color=INK_PRIMARY, fontsize=11)
         for spine in ax.spines.values():
             spine.set_visible(False)
@@ -214,18 +231,19 @@ def fig_per_class_metrics(runs: list[dict], out_dir: Path):
         p, r, f1, _ = precision_recall_fscore_support(
             run["labels"], run["preds"], labels=range(len(CLASS_NAMES)), zero_division=0
         )
-        metrics_by_run[run["kind"]] = {"precision": p, "recall": r, "f1": f1}
+        metrics_by_run[run["run_name"]] = {"precision": p, "recall": r, "f1": f1}
 
     fig, axes = plt.subplots(1, 3, figsize=(13, 4.2), sharey=True)
     x = np.arange(len(CLASS_NAMES))
-    width = 0.35
+    # Cluster stays 0.8 wide whatever the run count; a fixed 0.35 overflowed at n=3.
+    width = 0.8 / len(runs)
     for ax, metric in zip(axes, ["precision", "recall", "f1"]):
         for i, run in enumerate(runs):
-            vals = metrics_by_run[run["kind"]][metric]
+            vals = metrics_by_run[run["run_name"]][metric]
             offset = (i - (len(runs) - 1) / 2) * width
-            bars = ax.bar(x + offset, vals, width, label=MODEL_LABEL[run["kind"]],
-                           color=MODEL_COLOR[run["kind"]], edgecolor=SURFACE, linewidth=1.5, zorder=3)
-            ax.bar_label(bars, fmt="%.2f", fontsize=7, color=INK_SECONDARY, padding=2)
+            bars = ax.bar(x + offset, vals, width, label=run["label"],
+                           color=run["color"], edgecolor=SURFACE, linewidth=1.5, zorder=3)
+            ax.bar_label(bars, fmt="%.2f", fontsize=6.5, color=INK_SECONDARY, padding=2)
         ax.set_xticks(x)
         ax.set_xticklabels(CLASS_NAMES, rotation=20, ha="right")
         ax.set_ylim(0, 1.05)
@@ -241,13 +259,14 @@ def fig_per_class_metrics(runs: list[dict], out_dir: Path):
 def fig_lighting_stress_test(runs: list[dict], out_dir: Path):
     fig, ax = plt.subplots(figsize=(7.5, 4.5))
     x = np.arange(len(CONDITION_ORDER))
-    width = 0.35
+    # Cluster stays 0.8 wide whatever the run count; a fixed 0.35 overflowed at n=3.
+    width = 0.8 / len(runs)
     for i, run in enumerate(runs):
         vals = [run["lighting"].get(c, np.nan) for c in CONDITION_ORDER]
         offset = (i - (len(runs) - 1) / 2) * width
-        bars = ax.bar(x + offset, vals, width, label=MODEL_LABEL[run["kind"]],
-                       color=MODEL_COLOR[run["kind"]], edgecolor=SURFACE, linewidth=1.5, zorder=3)
-        ax.bar_label(bars, fmt="%.3f", fontsize=8, color=INK_SECONDARY, padding=2)
+        bars = ax.bar(x + offset, vals, width, label=run["label"],
+                       color=run["color"], edgecolor=SURFACE, linewidth=1.5, zorder=3)
+        ax.bar_label(bars, fmt="%.3f", fontsize=7, color=INK_SECONDARY, padding=2)
     ax.set_xticks(x)
     ax.set_xticklabels([CONDITION_LABEL[c] for c in CONDITION_ORDER])
     ax.set_ylabel("Accuracy")
@@ -263,20 +282,31 @@ def fig_overall_summary(runs: list[dict], out_dir: Path):
     metrics = ["accuracy", "roc_auc"]
     metric_labels = ["Test accuracy", "ROC-AUC (OvR)"]
     x = np.arange(len(metrics))
-    width = 0.35
+    # Cluster stays 0.8 wide whatever the run count; a fixed 0.35 overflowed at n=3.
+    width = 0.8 / len(runs)
     for i, run in enumerate(runs):
         vals = [run["accuracy"], run["roc_auc"]]
         offset = (i - (len(runs) - 1) / 2) * width
-        bars = ax.bar(x + offset, vals, width, label=MODEL_LABEL[run["kind"]],
-                       color=MODEL_COLOR[run["kind"]], edgecolor=SURFACE, linewidth=1.5, zorder=3)
+        bars = ax.bar(x + offset, vals, width, label=run["label"],
+                       color=run["color"], edgecolor=SURFACE, linewidth=1.5, zorder=3)
         ax.bar_label(bars, fmt="%.3f", fontsize=9, color=INK_SECONDARY, padding=3)
-    ax.axhline(0.85, color=CATEGORICAL[3], linestyle="--", linewidth=1.5, zorder=2)
-    ax.text(len(metrics) - 0.5, 0.86, "85% NFR target", fontsize=8, color=INK_SECONDARY, ha="right")
+    # The >=85% NFR is an accuracy requirement. Drawn as a full-width axhline it ran under the
+    # ROC-AUC bars too, implying a threshold those are being judged against -- they are not.
+    # It is now a segment spanning only the accuracy cluster, labelled directly above it.
+    acc_x = x[metrics.index("accuracy")]
+    ax.plot([acc_x - 0.5, acc_x + 0.5], [0.85, 0.85], color=CATEGORICAL[3],
+            linestyle="--", linewidth=1.5, zorder=4,
+            label="NFR: accuracy >= 85%")
+    # The threshold is named in the legend rather than in an inline text label. Every bar
+    # clears 0.85, so any label placed at that height lands on top of a bar and is unreadable.
     ax.set_xticks(x)
     ax.set_xticklabels(metric_labels)
-    ax.set_ylim(0, 1.0)
+    # Headroom for the value labels, which sit just under 1.0 for ROC-AUC and collided with
+    # the title at a hard 1.0 ceiling.
+    ax.set_ylim(0, 1.12)
     ax.set_title("Overall test-set performance", color=INK_PRIMARY, fontsize=13, loc="left")
-    ax.legend(frameon=False, ncols=1, loc="upper center", bbox_to_anchor=(0.5, -0.12))
+    ax.legend(frameon=False, ncols=2, loc="upper center", bbox_to_anchor=(0.5, -0.12),
+              labelcolor=INK_SECONDARY, fontsize=9.5)
     style_axes(ax)
     savefig(fig, out_dir, "06_overall_summary.png")
 
@@ -298,7 +328,7 @@ def fig_training_curves(runs: list[dict], out_dir: Path):
             ax.plot(epochs, history[keys[1]], color=CATEGORICAL[1], linewidth=2, label="Validation", zorder=3)
             ax.axvline(stage_split + 0.5, color=AXIS, linestyle="--", linewidth=1, zorder=2)
             if row == 0:
-                ax.set_title(MODEL_LABEL[run["kind"]], color=INK_PRIMARY, fontsize=12)
+                ax.set_title(run["label"], color=INK_PRIMARY, fontsize=12)
             if col == 0:
                 ax.set_ylabel(ylabel)
             ax.set_xlabel("Epoch")
@@ -342,7 +372,7 @@ def fig_underripe_ripe_confusion_by_source(runs: list[dict], out_dir: Path):
         ax.set_xticks(x)
         ax.set_xticklabels([SOURCE_LABEL[s] for s in sources], rotation=15, ha="right")
         ax.set_ylim(0, 1.0)
-        ax.set_title(MODEL_LABEL[run["kind"]], color=INK_PRIMARY, fontsize=11)
+        ax.set_title(run["label"], color=INK_PRIMARY, fontsize=11)
         style_axes(ax)
     axes[0].set_ylabel("Confusion rate")
     handles, labels = axes[0].get_legend_handles_labels()

@@ -19,6 +19,7 @@ Usage:
 import argparse
 import csv
 import json
+import re
 from collections import defaultdict
 from pathlib import Path
 
@@ -119,11 +120,22 @@ def load_calibration(cal_dir: Path) -> dict:
     return by_arch
 
 
+# Fold names carry a recipe-version prefix from v2 onward ("v2_bunch_piles"), while the v1
+# campaign wrote them bare ("bunch_piles"). FOLD_ORDER/FOLD_LABEL are keyed on the bare source
+# name so one set of labels serves every campaign; stripping the prefix here is what lets that
+# hold. Without it, by_fold is a defaultdict, so an unmatched key yields an empty list rather
+# than a KeyError -- figure 11 would render with blank bars instead of failing.
+FOLD_PREFIX = re.compile(r"^v\d+_")
+
+
 def load_lodo(path: Path) -> dict:
     by_fold = defaultdict(list)
     with path.open(newline="") as f:
         for row in csv.DictReader(f):
-            by_fold[row["fold"]].append(row)
+            by_fold[FOLD_PREFIX.sub("", row["fold"])].append(row)
+    missing = [f for f in FOLD_ORDER if not by_fold.get(f)]
+    if missing:
+        raise SystemExit(f"{path}: no rows for fold(s) {missing}; expected {FOLD_ORDER}.")
     return by_fold
 
 
@@ -134,13 +146,16 @@ def fig_multiseed(by_arch: dict, out_dir: Path):
     fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(16, 5.2))
 
     # (a) Bar = mean, whisker = sample std, dots = the individual seed runs.
+    label_tops, n_seeds = [], set()
     for i, arch in enumerate(archs):
         accs = [float(r["accuracy"]) * 100 for r in by_arch[arch]]
+        n_seeds.add(len(accs))
         m, s = mean_std(accs)
         ax1.bar(i, m, 0.55, color=ARCH_COLOR[arch], zorder=2)
         ax1.errorbar(i, m, yerr=s, fmt="none", ecolor=INK_PRIMARY, capsize=6, lw=1.6, zorder=4)
         ax1.scatter([i] * len(accs), accs, color=SURFACE, edgecolor=INK_PRIMARY,
                     s=34, zorder=5, linewidth=1.2)
+        label_tops.append(m + s + 2.5)
         ax1.text(i, m + s + 2.5, f"{m:.2f} +/- {s:.2f}", ha="center",
                  color=INK_PRIMARY, fontsize=10, fontweight="bold")
 
@@ -149,9 +164,13 @@ def fig_multiseed(by_arch: dict, out_dir: Path):
              color=CATEGORICAL[3], fontsize=9, fontweight="bold")
     ax1.set_xticks(range(len(archs)))
     ax1.set_xticklabels(archs, color=INK_SECONDARY, fontsize=9.5)
-    ax1.set_ylim(0, 95)
+    # Ceiling follows the tallest value label rather than a fixed 95. Hardcoding it was safe
+    # while the best run was 78.72% (recipe v1) and clipped the 94.55 +/- 0.31 label into the
+    # title once v2 landed. Bars stay zero-based -- this is a bar chart of a percentage.
+    ax1.set_ylim(0, max(max(label_tops) + 3.0, NFR_ACCURACY + 8.0))
     ax1.set_ylabel("Test accuracy (%)")
-    ax1.set_title("(a) Test accuracy, 3 seeds per architecture",
+    seeds = f"{n_seeds.pop()} seeds" if len(n_seeds) == 1 else "varying seed counts"
+    ax1.set_title(f"(a) Test accuracy, {seeds} per architecture",
                   color=INK_PRIMARY, fontsize=11.5, fontweight="bold", loc="left")
     style_axes(ax1)
 
@@ -235,21 +254,25 @@ def fig_calibration(by_arch: dict, out_dir: Path):
         ax1.bar(x + (i - 0.5) * width, means, width, yerr=stds, capsize=4, label=label,
                 color=color, zorder=2, error_kw={"ecolor": INK_PRIMARY, "lw": 1.4})
 
+    cal_label_tops = []
     for i, arch in enumerate(archs):
         base, _ = mean_std([d["test_baseline"]["accuracy"] * 100 for d in by_arch[arch]])
         cal, _ = mean_std([d["test_calibrated"]["accuracy"] * 100 for d in by_arch[arch]])
         delta = cal - base
+        cal_label_tops.append(max(base, cal) + 2.6)
         ax1.text(i, max(base, cal) + 2.6, f"{delta:+.2f} pts", ha="center",
                  fontsize=10.5, fontweight="bold",
                  color=CATEGORICAL[2] if delta > 0.1 else INK_MUTED)
 
     ax1.set_xticks(x)
     ax1.set_xticklabels(archs, color=INK_SECONDARY)
-    ax1.set_ylim(0, 92)
+    # Ceiling follows the tallest value label rather than a fixed 92, which was sized
+    # for recipe v1 (best calibrated run 79.17%) and clipped every v2 bar and its label.
+    ax1.set_ylim(0, max(cal_label_tops) + 9.0)
     ax1.set_ylabel("Test accuracy (%)")
     ax1.set_title("(a) Calibration gain on test",
                   color=INK_PRIMARY, fontsize=11.5, fontweight="bold", loc="left")
-    ax1.legend(frameon=False, labelcolor=INK_SECONDARY, fontsize=9.5)
+    ax1.legend(frameon=False, labelcolor=INK_SECONDARY, fontsize=9.5, loc="upper left")
     style_axes(ax1)
 
     # (b) Where the gain comes from, for whichever architecture ends up best after calibration --
@@ -279,7 +302,7 @@ def fig_calibration(by_arch: dict, out_dir: Path):
 
     ax2.set_xticks(xc)
     ax2.set_xticklabels([c.capitalize() for c in CLASS_NAMES], color=INK_SECONDARY)
-    ax2.set_ylim(0, 1.18)
+    ax2.set_ylim(0, 1.34)
     ax2.set_ylabel("Recall (mean +/- std over seeds)")
     ax2.set_title(f"(b) {focus} per-class recall - the trade",
                   color=INK_PRIMARY, fontsize=11.5, fontweight="bold", loc="left")
@@ -323,7 +346,7 @@ def fig_calibration(by_arch: dict, out_dir: Path):
 
 # --- Figure 11: leave-one-dataset-out generalization -------------------------------------
 
-def fig_lodo(by_fold: dict, main_split_acc: float, out_dir: Path):
+def fig_lodo(by_fold: dict, main_split_acc: float, arch: str, n_seeds: int, out_dir: Path):
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15.5, 5.6),
                                    gridspec_kw={"width_ratios": [1.15, 1]})
 
@@ -344,7 +367,7 @@ def fig_lodo(by_fold: dict, main_split_acc: float, out_dir: Path):
     # The two reference levels go in a legend rather than as in-plot text: every strip of
     # space beside these lines is already taken by a bar or its value label.
     ax1.axhline(main_split_acc, color=CATEGORICAL[2], ls="-", lw=1.8, zorder=3,
-                label=f"Main split (EfficientNetB0, n=3): {main_split_acc:.2f}%")
+                label=f"Main split ({arch}, n={n_seeds}): {main_split_acc:.2f}%")
     ax1.axhline(lodo_mean, color=CATEGORICAL[1], ls="--", lw=1.6, zorder=3,
                 label=f"LODO mean across 4 folds: {lodo_mean:.2f}%")
 
@@ -414,11 +437,33 @@ def fig_lodo(by_fold: dict, main_split_acc: float, out_dir: Path):
     savefig(fig, out_dir, "11_lodo_generalization_gap.png")
 
 
+def lodo_architecture(by_fold: dict) -> str:
+    """The architecture the LODO campaign was actually run on, read from its own rows.
+
+    This used to be hardcoded to EfficientNetB0 -- correct for the v1 campaign, where
+    EfficientNetB0 was the winner LODO was run on, and silently wrong for v2, where the
+    winner is FastViT_T8. Hardcoding it meant figure 11 could draw its main-split
+    reference line from one architecture and its folds from another, understating or
+    overstating the generalization gap with nothing on the figure to show it. Deriving it
+    from the LODO rows makes that class of mismatch impossible.
+    """
+    archs = {row["architecture"] for rows in by_fold.values() for row in rows}
+    if len(archs) != 1:
+        raise SystemExit(f"LODO CSV mixes architectures {sorted(archs)}; expected exactly one.")
+    return archs.pop()
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--multiseed", type=Path, default=Path("results/multiseed_per_run.csv"))
-    parser.add_argument("--calibration", type=Path, default=Path("results/calibration"))
-    parser.add_argument("--lodo", type=Path, default=Path("results/lodo_per_run.csv"))
+    # Defaults point at the v2 campaign, which is the live one. They pointed at the v1 CSVs
+    # until 2026-09-03, which is how results/figures/ came to hold v1 figures for a report
+    # headlining v2 numbers. v1 remains reproducible by passing the v1 paths explicitly.
+    parser.add_argument("--multiseed", type=Path, default=Path("results/multiseed_v2_per_run.csv"))
+    parser.add_argument("--lodo", type=Path, default=Path("results/lodo_v2_per_run.csv"))
+    # No default: the only calibration artifacts on disk were fitted on v1 checkpoints and
+    # are void under v2 (docs/report_limitations.md L6). Figure 10 is therefore opt-in --
+    # passing --calibration is an assertion that the directory matches the campaign.
+    parser.add_argument("--calibration", type=Path, default=None)
     parser.add_argument("--out", type=Path, default=Path("results/figures"))
     args = parser.parse_args()
 
@@ -428,16 +473,28 @@ def main():
     by_arch = load_multiseed(args.multiseed)
     fig_multiseed(by_arch, args.out)
 
-    print("Threshold calibration:")
-    by_arch_cal = load_calibration(args.calibration)
-    fig_calibration(by_arch_cal, args.out)
+    if args.calibration is None:
+        print("Threshold calibration: SKIPPED (no --calibration given; figure 10 left as-is).")
+    else:
+        print("Threshold calibration:")
+        by_arch_cal = load_calibration(args.calibration)
+        fig_calibration(by_arch_cal, args.out)
 
     print("LODO generalization:")
     by_fold = load_lodo(args.lodo)
     # Reference line comes from the same multi-seed campaign the LODO winner was picked
     # from, rather than a hardcoded number, so the two figures can never disagree.
-    main_acc, _ = mean_std([float(r["accuracy"]) * 100 for r in by_arch["EfficientNetB0"]])
-    fig_lodo(by_fold, main_acc, args.out)
+    arch = lodo_architecture(by_fold)
+    if arch not in by_arch:
+        raise SystemExit(
+            f"LODO ran on {arch}, absent from {args.multiseed}. The main-split reference "
+            f"line must come from the same architecture and campaign as the folds."
+        )
+    ref_rows = by_arch[arch]
+    main_acc, _ = mean_std([float(r["accuracy"]) * 100 for r in ref_rows])
+    print(f"  reference: {arch} main split {main_acc:.2f}% "
+          f"(n={len(ref_rows)}, from {args.multiseed.name})")
+    fig_lodo(by_fold, main_acc, arch, len(ref_rows), args.out)
 
 
 if __name__ == "__main__":

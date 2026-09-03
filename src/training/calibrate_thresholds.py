@@ -97,6 +97,17 @@ def main():
     parser.add_argument("--manifest", type=Path, default=Path("data/processed/manifest_full.csv"))
     parser.add_argument("--objective", default="accuracy", choices=["accuracy", "macro_f1"])
     parser.add_argument("--out-dir", type=Path, default=Path("results/calibration"))
+    # The summary path used to be hardcoded, and --out-dir alone was not enough to keep
+    # two campaigns apart: per-run JSONs are named after the run directory, so a v2
+    # campaign writing into results/calibration/ would sit alongside the v1 files rather
+    # than replace them, and anything globbing *.json there (make_campaign_figures.py
+    # does) would pool checkpoints from two different training recipes into one figure.
+    # Point both outputs at a per-campaign namespace, matching the --tag discipline
+    # already used for run directories.
+    parser.add_argument("--out-md", type=Path,
+                        default=Path("results/calibration_summary.md"),
+                        help="summary markdown path. Keep it paired with --out-dir: "
+                             "one campaign, one directory, one summary.")
     args = parser.parse_args()
 
     pattern_desc = ", ".join(args.pattern)
@@ -178,7 +189,8 @@ def main():
         lines += ["", f"Validation gain {vcm - vbm:+.2f} pts vs test gain {tcm - tbm:+.2f} pts — "
                       f"the difference is the amount that did not generalise.", ""]
 
-    out_md = Path("results/calibration_summary.md")
+    out_md = args.out_md
+    out_md.parent.mkdir(parents=True, exist_ok=True)
     out_md.write_text("\n".join(lines) + "\n")
     print("\n" + "\n".join(lines))
     print(f"\nWrote {args.out_dir}/ and {out_md}")

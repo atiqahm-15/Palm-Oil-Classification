@@ -7,7 +7,7 @@ Supervisor: Dr. Muhammad Shahreeza Safiruz Kassim · Co-Supervisor: Ahmad Syazwa
 Prepared: August 2026 — Semester break, ahead of formal FYP2 supervision
 *Revision 2: updated after the decision to stop using the original Roboflow dataset and source a new, merged dataset instead.*
 
-## 0. Current Status — updated 2026-09-02
+## 0. Current Status — updated 2026-09-03
 
 | Phase | Status |
 |---|---|
@@ -45,6 +45,28 @@ gap as a quantified part of the result, not a footnote.** Every appearance of th
 must carry the scoping sentence given in the final entry of §8 — the ≥85% NFR is met on the
 held-out test split and is *not* claimed to hold under source shift. Consequence for the
 critical path: Phase 3/4 only have to demonstrate the main-split model on-device.
+
+**The fourth thing to know, added 2026-09-03 — the report can now be drafted from
+`results/`.** Two things that would have forced a rewrite mid-draft are closed. (1) Every
+figure in `results/figures/` was a recipe-v1 figure, because the figure scripts *defaulted* to
+the v1 runs and CSVs; all eleven are now regenerated on the v2 campaign, and four
+silent-wrong-figure bugs in those scripts were fixed. (2) The duplicate-row defect is measured
+rather than merely bounded: it moves the headline by **-0.04 points** (94.55% → 94.51%),
+at most 0.08 across any run, always upward-biasing, and no conclusion changes — so the campaign
+is **not** being re-run for it. See the last two entries of §8.
+
+Calibration is now refit on v2 (see §8): the gain shrinks to +0.21 points for the selected
+model against a ±0.31 seed spread, so the headline stays **uncalibrated** and figure 10 is
+regenerated. **Every figure in `results/figures/` is now a v2 figure.**
+
+One item remains open and needs a decision before the results chapter is drafted, not after:
+**the fine-tuning-depth confound is unresolved under v2.**
+Note that the v2 campaign being uniformly K=3 does *not* resolve it: K counts blocks, and
+FastViT_T8 has ten blocks against sixteen for both CNNs, so K=3 unfreezes 28.0% of FastViT's
+layers against ~19% for MobileNetV2 and EfficientNetB0. That is precisely the mismatch
+`docs/report_limitations.md` L3b describes, and the control that previously closed it
+(EfficientNetB0 at K=4) was measured under v1 and is void. Either re-run that control under v2
+— three seeds — or report the confound as unresolved.
 
 **Reading order:** §0 for status, the last entry of §8 for what is in flight, §9 for what
 needs a supervisor decision.
@@ -713,6 +735,115 @@ Keep the GitHub repo as the source of truth: commit experiment configs and resul
   could reverse on a phone. **The <=2s NFR is still not demonstrated on device** — that remains the
   open half of Phase 3, and `docs/report_limitations.md` L4 needs rewriting now that the conversion
   half is done.
+
+- **Duplicate-row defect measured (2026-09-03) — the headline moves by 0.04 points, and the
+  item is CLOSED as documented rather than fixed.** `src/training/measure_duplicate_impact.py`,
+  results in `results/duplicate_row_impact.md` + `.csv`. Run in the `fyp-gpu` WSL venv.
+
+  The defect was recorded above as a measure-and-document item on the strength of "~1% of the
+  test set is double-counted." That bounded the exposure but did not say which way or how far
+  the numbers move, which is not enough to put in front of an examiner. It is now measured.
+
+  Method: duplicate rows point at the same image, so inference runs once per unique test image
+  and each metric is computed twice over identical predictions — once with rows weighted by
+  their manifest multiplicity (reproducing what was published), once with each image counted
+  one. **The as-scored pass returns 94.55% ± 0.31 for FastViT_T8, exactly the published
+  headline**, which is what certifies the measurement rather than merely asserting it.
+
+  | Quantity | As published | Deduplicated | Delta |
+  |---|---:|---:|---:|
+  | FastViT_T8 test accuracy (n=3) | **94.55% ± 0.31** | **94.51% ± 0.33** | **-0.04 pts** |
+  | EfficientNetB0 (seed 42) | 91.55% | 91.47% | -0.08 pts |
+  | MobileNetV2 (seed 42) | 89.64% | 89.61% | -0.03 pts |
+
+  - **Largest shift across any run measured: 0.08 points** — an order of magnitude below the
+    ±0.31 seed-to-seed spread the headline already carries, and far below the 9.55-point margin
+    over the ≥85% NFR. No reported conclusion changes.
+  - **The bias direction is knowable, not a coin flip.** Every delta is negative because the
+    27 duplicated test images are ones the models classify well (92-100% accuracy on that
+    subset, against 90-95% overall), so double-counting inflates rather than deflates. The
+    report should state the direction, not just the magnitude.
+  - **Test-split exposure is smaller than the raw 1,481 figure suggests.** Only 27 of those
+    rows are in test (0.99% of 2,722, affecting 27 distinct images, spread across all four
+    classes: unripe 7, underripe 4, ripe 9, overripe 7). The other 1,454 are in train (1,422)
+    and valid (32).
+  - **What is measured is the reporting error, not the training error.** The 1,422 duplicated
+    training rows double-weight some training images; quantifying that would require retraining
+    on a deduplicated manifest. Out of scope, and stated as such in the output — the claim this
+    supports is about the numbers as reported, not the models as trained.
+
+  **Consequence: do not re-run the campaign for this.** Fixing `src/data/crop_bunch_piles.py`
+  and retraining would cost the full 9-run campaign to move the headline by 0.04 points. The
+  defect is instead reported as a measured, bounded, direction-known limitation. The fix still
+  belongs in the pipeline before any *future* campaign, and the earlier instruction to fix it
+  "before the final numbers are quoted" is superseded by this measurement.
+
+- **Report figures regenerated onto v2 (2026-09-03).** Every figure in `results/figures/` was
+  a recipe-v1 figure until this date, while the report headlines v2 numbers. Figures 01-08 had
+  been generated from `mobilenetv2_fyp2_baseline` + `mobilenetv2_fyp2_ordinal` (retired v1 CPU
+  runs) and figures 09/11 from `multiseed_per_run.csv` / `lodo_per_run.csv` (the v1 CSVs), in
+  both cases because those were the *script defaults*. Regenerated against the v2 campaign;
+  three defects in the figure scripts were fixed in the process, each of which had produced a
+  wrong-but-plausible figure rather than an error:
+
+  1. `make_campaign_figures.py` hardcoded **EfficientNetB0** as the source of figure 11's
+     main-split reference line — correct for v1, where EfficientNetB0 was the architecture
+     LODO ran on, and silently wrong for v2, where it is FastViT_T8. It would have drawn a
+     94.55%-vs-52.11% gap as ~39 points against the wrong baseline. The architecture is now
+     derived from the LODO CSV's own `architecture` column and printed at run time.
+  2. The same script keyed folds on bare source names (`bunch_piles`), while v2 fold names
+     carry a recipe prefix (`v2_bunch_piles`). Because the lookup was a `defaultdict`, the
+     mismatch would have rendered figure 11 with empty bars instead of raising. Prefixes are
+     now stripped on load and missing folds raise.
+  3. `make_report_figures.py` keyed colour and label on a `kind` of "baseline" vs "ordinal" —
+     the FYP1-era categorical-vs-CORAL question. All three v2 architectures are categorical, so
+     all three collapsed onto one key: figure 04 would have plotted one architecture's metrics
+     three times, all labelled "Categorical (baseline)". Runs are now keyed by run name and
+     labelled from their own `config.json`. Bar widths, fixed at 0.35 for exactly two runs, now
+     scale with run count.
+
+  Figure 10 (calibration) was held back at this point, because the only calibration artifacts on
+  disk had been fitted on v1 checkpoints. It is now opt-in via an explicit `--calibration` flag
+  rather than a default, so it cannot be silently rebuilt from stale inputs, and it was
+  regenerated later the same day once the v2 refit landed — see the entry below. A fourth latent
+  bug surfaced there: panel (a)'s y-limit was hardcoded to 92, sized for v1's best calibrated run
+  of 79.17%, and clipped every v2 bar and its value label.
+
+- **Calibration refit onto v2 (2026-09-03) — the technique is now redundant, and the headline
+  stays uncalibrated. Item CLOSED.** `results/calibration_v2_summary.md`,
+  `results/calibration_v2/`, figure 10 regenerated. Inference only; nothing retrained.
+
+  The v1 calibration numbers were fitted on under-trained checkpoints and were void. Refitting
+  on the v2 checkpoints answers whether per-class threshold calibration still earns a place in
+  the report. **The baselines it recovers — 91.27 / 94.55 / 89.62 — reproduce the published v2
+  campaign, which is what validates the refit.**
+
+  | Architecture | Test gain, v1 | Test gain, v2 | Validation gain, v2 |
+  |---|---:|---:|---:|
+  | EfficientNetB0 | +1.41 | **+0.55** | +0.84 |
+  | FastViT_T8 (selected) | +0.45 | **+0.21** | +0.60 |
+  | MobileNetV2 | **-0.24** | **+0.29** | +0.46 |
+
+  - **For the selected model the gain is smaller than the noise it is measured against.**
+    FastViT_T8 gains +0.21 points against a seed-to-seed spread of ±0.31. Calibration can no
+    longer be distinguished from run-to-run variance on the model actually being deployed.
+  - **The mechanism has gone quiet because the problem it treated is gone.** Under v1 it bought
+    underripe recall violently — FastViT +0.171 underripe paid for with -0.120 ripe. Under v2
+    the same procedure moves underripe by +0.021 and ripe by -0.004, because underripe already
+    sits at 0.904 out of training rather than 0.510. There is almost nothing left to buy.
+  - **It is no longer *harmful* anywhere**, which is itself a change: MobileNetV2 went from
+    -0.24 under v1 to +0.29 under v2. The earlier concern that calibration might now actively
+    hurt did not materialise. It simply stopped mattering.
+  - **Roughly two-thirds of the fitted gain still fails to transfer** (FastViT +0.60 validation
+    against +0.21 test), the same qualitative finding as v1 at a smaller scale.
+
+  **Decision: the headline stays 94.55% ± 0.31, uncalibrated.** Quoting the calibrated 94.76%
+  would claim a gain inside the seed spread, and would oblige the deployed pipeline to carry
+  per-class threshold weights through the TFLite export for a benefit that cannot be
+  distinguished from noise. Calibration is reported in the discussion as a v1-era remedy that
+  the corrected training recipe made redundant — which supports the project's central finding
+  rather than competing with it. `docs/report_limitations.md` L6 needs rewriting on this basis;
+  its v1 numbers are void.
 
 ## 9. Open Questions for Supervisors
 
