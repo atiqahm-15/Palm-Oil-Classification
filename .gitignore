@@ -38,3 +38,23 @@ exports/
 .idea/
 .DS_Store
 Thumbs.db
+
+# App test fixtures copied from the test split — images and their tensors stay out of git
+# like the rest of the dataset. reference.json (numbers only) stays tracked. Regenerate with
+# src/training/make_app_bundle.py.
+app/src/androidTest/assets/fixtures/*
+!app/src/androidTest/assets/fixtures/reference.json
+
+# Same split for the device latency sweep: the staged quantization variants are covered by the
+# *.tflite rule above, and benchmark/manifest.json (sizes, hashes, host latencies) stays tracked.
+
+# Android build outputs and machine-local paths. The wrapper itself (gradlew, gradlew.bat,
+# gradle/wrapper/) stays tracked so the APK builds from a fresh clone.
+.gradle/
+build/
+app/build/
+local.properties
+*.iml
+captures/
+.cxx/
+app/release/

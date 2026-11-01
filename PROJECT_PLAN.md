@@ -14,8 +14,8 @@ Prepared: August 2026 — Semester break, ahead of formal FYP2 supervision
 | 0 — Environment & data sourcing | Complete |
 | 1 — Unified dataset construction | Complete |
 | 2 — Model development & comparison | **Complete under recipe v2** — FastViT_T8 94.55% ± 0.31, see end of §8 |
-| 3 — Mobile optimization (TFLite) | **Conversion spike complete (2026-09-02)** — 12/12 exports builtin-only, no Flex; FastViT_T8 float16 (6.1MB / 47.2ms) is the recommended artefact. On-device benchmark still outstanding. See end of §8 |
-| 4 — Android app | Not started — `app/` holds a placeholder README |
+| 3 — Mobile optimization (TFLite) | **Conversion + lighting done; one item left.** 12/12 exports builtin-only, no Flex (2026-09-02); FastViT_T8 float16 (6.1MB) is the recommended artefact. Lighting re-measured through the converted model 2026-09-25 — spread 1.36 pts, full-split TFLite accuracy 94.12% (-0.44 vs Keras). **Only the on-device latency benchmark remains**; it is written and compiling (`DeviceLatencyBenchmark`, `docs/device_session_checklist.md`). See end of §8 |
+| 4 — Android app | **All four screens built 2026-09-24** — end-to-end capture/upload → on-device inference → result runs on an emulator; app reproduces Python to within the JPEG-decoder difference. Camera framing was measured as a -45.7-point risk and is **fixed 2026-09-25 by cropping the capture to the brackets** (verified geometrically, not in the field). Not yet seen on a phone. See end of §8 |
 | 5 — Extended evaluation & ablation | **v2 LODO complete** — FastViT_T8, 4 folds × 3 seeds, mean **52.11%** vs 94.55% main split (see end of §8). Ablations not started |
 | 6 — Report writing & viva prep | Not started |
 
@@ -68,6 +68,24 @@ void, and must be rewritten** — its central claim is the falsified v1 control.
 Note that the v2 campaign being uniformly K=3 does *not* resolve it: K counts blocks, and
 FastViT_T8 has ten blocks against sixteen for both CNNs, so K=3 unfreezes 28.0% of FastViT's
 layers against ~19% for MobileNetV2 and EfficientNetB0. That is precisely the mismatch
+
+**The fifth thing to know, added 2026-09-24.** The camera-framing question flagged at the end
+of the previous entry — that the app feeds the model a whole, background-heavy frame while
+every training image is a tight bunch crop — is no longer a hunch. `src/training/
+check_framing_shift.py` re-scored the full 2,722-image test split through the app's actual
+capture geometry (9:20 aspect, ~25% area fraction, matching the drawn framing guide) and
+measured **48.46% accuracy against a 94.16% same-model baseline — a 45.7-point drop**, larger
+than every other single effect measured in this project, including the entire v1→v2 recipe
+fix and the LODO generalization gap. Unripe and underripe recall are hit hardest (0.94→0.39,
+0.90→0.31); ripe and overripe are comparatively robust (0.96→0.67, 0.97→0.55).
+
+**Fixed 2026-09-25**: the app now crops the capture to the framing brackets, so the model is
+given what the user framed rather than the whole frame. Scored at the shipped 7:9 bracket
+geometry, that recovers **44.0 of the 45.7 points** (92.47% against the 94.16% baseline,
+`results/framing_shift_brackets/`). The fix is unit-tested and builds, but **no photograph taken
+through the shipped app has been scored and field photographs could not be obtained** — so it is
+verified geometrically and in simulation, not in a plantation, and the report must say exactly
+that. See the last two entries of §8 and `docs/report_limitations.md` L8.
 `docs/report_limitations.md` L3b describes, and the control that previously closed it
 (EfficientNetB0 at K=4) was measured under v1 and is void. Either re-run that control under v2
 — three seeds — or report the confound as unresolved.
@@ -162,16 +180,17 @@ Timeline is in relative weeks starting from when you begin executing this plan �
 
 **Milestone:** Comparison table across ≥3 architectures plus LODO results across all 4 sources; best model selected against the ≥85% accuracy target with a written justification if the target isn't fully met.
 
-### Phase 3 — Weeks 10–11: Mobile Optimization ⬜ NOT STARTED
+### Phase 3 — Weeks 10–11: Mobile Optimization ◐ ONE ITEM LEFT (on-device latency)
 
-- Convert the selected model to TensorFlow Lite; apply float16 and int8 quantization.
-- Benchmark actual file size (≤100MB) and on-device inference latency (≤2s) — not Colab estimates.
-- Re-run the lighting-robustness test (original/darkened/brightened) on the optimized model.
-- Test on real 224×224 input images per NFR-5.
+- ✅ Convert the selected model to TensorFlow Lite; apply float16 and int8 quantization.
+- ◐ Benchmark actual file size (≤100MB) and on-device inference latency (≤2s) — not Colab
+  estimates. **Size demonstrated (6.1MB); latency still host-side only.**
+- ✅ Re-run the lighting-robustness test (original/darkened/brightened) on the optimized model.
+- ✅ Test on real 224×224 input images per NFR-5.
 
 **Milestone:** Final `.tflite` export meeting all 5 non-functional requirements, with a benchmark report on a real Android device.
 
-### Phase 4 — Weeks 12–14: Mobile App Development ⬜ NOT STARTED
+### Phase 4 — Weeks 12–14: Mobile App Development ◐ IN PROGRESS (all four screens built; phone testing outstanding)
 
 - Build the Android app in Kotlin per the existing mockups (Home / Preview / Result pages).
 - Implement capture-or-upload flow, on-device TFLite inference, and confidence-score display with the per-class bar shown in the mockup.
@@ -888,6 +907,230 @@ Keep the GitHub repo as the source of truth: commit experiment configs and resul
   above and is the natural next control if time allows — without it, the honest claim is that
   FastViT leads at the closest matchable depth, not at an exactly matched one.
 
+
+- **Phase 4 started (2026-09-24) — the Android project exists, builds, and its preprocessing is
+  now proven against Python rather than asserted.** `app/` was a placeholder README; it is now a
+  Gradle module at the repository root (`settings.gradle.kts`, wrapper committed) with the model
+  layer, the theme from `app/DESIGN_HANDOFF.md`, the Home screen, and both parity test suites.
+  What is built and what is not is listed in `app/README.md`; Camera, Review and Results are
+  routed but still land on a placeholder. Three build decisions worth recording because they are
+  not recoverable from the code:
+  - **Jetpack Compose, not XML views.** The handoff is a dp/sp spec with six custom components and
+    deliberately no Material look; Compose expresses it directly, and the buttons are built from
+    primitives so no Material default leaks into a screen the report shows.
+  - **`minSdk` 26.** Google Fonts publishes Fraunces and Instrument Sans only as variable fonts,
+    and setting a weight on the `wght` axis needs API 26. Below that, Fraunces falls back to its
+    default instance, which is Thin — every heading in the app would render hairline. Both fonts
+    are bundled (OFL, licences in `app/licenses/`) because the manifest requests no `INTERNET`
+    permission, so a downloadable-font provider could never resolve. That missing permission is
+    deliberate and is the checkable form of the report's offline claim.
+  - **Gradle must run on JDK 17 on this machine.** Android Studio 2026.1.4 ships JBR 25, which
+    Gradle 8.10.2 refuses to run on. Set the Gradle JDK to Temurin 17 in Studio, or export
+    `JAVA_HOME` for command-line builds. AGP 8.7.3 / Gradle 8.10.2 / Kotlin 2.0.21 are pinned in
+    `gradle/libs.versions.toml` so the APK the report benchmarks can be rebuilt later.
+
+  **The result that matters, and it is not the screens.** `ModelParityTest` runs on a device and
+  compares the app's outputs to Python's on the same 20 stratified test-split fixtures. Feeding
+  the exact float32 tensors Python fed, the app reproduces its probabilities to **within 1e-4** —
+  the interpreter wiring, buffer order, output shape and label order are all correct. Starting
+  from the same JPEGs and running the app's own decode → resize → scale, the probabilities move
+  by up to **0.0424**, with the **predicted class unchanged on all 20**. The JVM test
+  `ResizeParityTest` separately confirms the Kotlin bilinear resize matches `tf.image.resize`
+  (half-pixel centres, no antialias) to <1e-3 at 800 sampled positions, so the resize is not the
+  source of that 0.0424.
+
+  **The source is the JPEG decoder, and it is now measured rather than argued.** Android cannot
+  call `tf.io.decode_jpeg`. Decoding the same fixtures with Pillow on the desktop — an
+  independent libjpeg configuration — gives pixels up to **16 of 255** apart from TensorFlow's
+  (mean 1.8) and a worst probability shift of **0.042418**, which is the *same* worst case the
+  device produced, on the same image, to seven decimal places. So the remaining difference is the
+  decoder, not the app. `make_app_bundle.py` now performs this comparison as part of bundling and
+  writes it into `reference.json` (`decoder_spread`), deriving the instrumented test's jpg
+  tolerance from the measurement (currently 0.064) instead of the 0.02 that was previously
+  assumed. The argmax assertion is the one that must not bend; wrong preprocessing — wrong value
+  range, a centre crop, swapped channels — is off by whole units, not hundredths.
+
+  **What this does not yet establish.** Decoder agreement was measured on 20 images, not on the
+  2,722-image test split, so the accuracy cost of deploying with a non-TensorFlow decoder is
+  bounded anecdotally rather than quantified. Re-scoring the test split with Pillow decoding is a
+  few minutes of compute and would turn it into a number, in the same spirit as the duplicate-row
+  measurement; it has not been run. Nothing on-device is a latency measurement either: the
+  instrumented run was an x86_64 emulator, which says nothing about a phone, and the ≤2 s
+  requirement still needs the real device benchmark that Phase 3 owes (see L4).
+
+- **Phase 4 screens complete (2026-09-24), same day as the scaffold.** Camera, Review and Results
+  are built on top of the morning's model layer, and the flow in `app/DESIGN_HANDOFF.md` runs end
+  to end on an Android 35 emulator: capture or upload, then on-device inference, then the verdict
+  with its per-stage chart. Picking the bundled fixture `10_ripe.jpg` through the upload path gives
+  **Ripe, 88.9%** where Python gives **88.7%** on the same file — the 0.2-point gap is the decoder
+  difference documented above, reaching the screen exactly as predicted. The close-call notice was
+  observed firing on its own on a nonsense photograph whose top two scores landed 0.3 points apart.
+  Three changes to the drawn design, all in `app/DESIGN_NOTES.md` with reasoning:
+  - **The Analysing screen loses its determinate progress bar.** It was specified as 0-100 with a
+    percentage; inference is tens of milliseconds, so the percentage would be fiction. It is now an
+    indeterminate spinner held for a **400 ms floor** so the step registers rather than flickers.
+  - **Two layouts were made proportional rather than absolute.** The handoff gives dp from a
+    360 x 800 reference. Review's 640 dp photo area left a dead band on a 952 dp-tall phone and now
+    takes the space above the buttons; the camera hint pill is anchored 20 dp below the framing
+    guide, which is where its absolute 530 dp puts it on the reference and nowhere else.
+  - **Review's title gained a gradient scrim.** White text on a sunlit bunch is otherwise illegible,
+    which only became visible once a real photograph was behind it.
+
+  **One finding that is not a UI matter and should reach the supervisor.** The framing guide covers
+  roughly a third of the previewed frame, and the contract feeds the model the **whole** frame
+  squashed to 224 x 224 — while every training image is a tight crop around a single bunch. A user
+  who obeys the hint therefore hands the model a smaller, more background-heavy bunch than anything
+  in training, which is a scale and context shift the parity fixtures cannot reveal, because they
+  are already crops. Three ways out: leave it as specified, crop the capture to the brackets before
+  the resize, or widen the brackets to the full frame and change the hint copy. Choosing between
+  them needs field photographs taken both ways on a phone and scored, not an argument from first
+  principles. **This is now the most likely reason for a gap between the 94.55% test accuracy and
+  what the app does in a plantation.**
+
+  Still outstanding for Phase 4: nothing has been seen on real hardware. The torch cannot be tested
+  on an emulator at all (no flash unit is reported, so the toggle hides itself), the low-light
+  thresholds in `LumaMeter` are provisional and uncalibrated, and the emulator's latency figure is
+  meaningless for the ≤ 2 s requirement. All three need one session with a phone.
+
+- **Camera-framing accuracy cost measured (2026-09-24) — the app's own capture geometry costs
+  45.7 points on the full test split.** `src/training/check_framing_shift.py` closes the finding
+  flagged in the previous entry rather than leaving it as prose. Method: take each of the 2,722
+  test-split images, simulate the crop-then-resize the app actually performs — a viewfinder box
+  at a given aspect ratio and area fraction, background filled two ways (a blurred continuation
+  of the crop, or flat grey, as a synthetic stand-in for real plantation background) — and re-run
+  the exported `model.tflite` on the result. `baseline` (unmodified crops) reproduces **94.16%**,
+  close to but not identical to the 94.55% ± 0.31 multi-seed headline (this is one exported
+  float16 model, not the seed average — the ~0.4-point gap is expected and not itself a finding).
+
+  | Condition | Aspect | Area fraction | Accuracy | Δ vs baseline |
+  |---|---|---:|---:|---:|
+  | Baseline (full crop) | — | 1.00 | 94.16% | — |
+  | App's actual geometry | 9:20 | 0.25 | **48.46%** | **-45.7 pts** |
+  | Same aspect, full frame | 9:20 | 1.00 | 81.41% | -12.7 pts |
+  | Squarer viewfinder, full frame | 3:4 | 1.00 | 91.62% | -2.5 pts |
+  | Square viewfinder, full frame | 1:1 | 1.00 | 93.57% | -0.6 pts |
+  | Square viewfinder, app's area | 1:1 | 0.25 | 46.33% | -47.8 pts |
+
+  **Scale, not aspect, is the dominant cost.** Holding area fraction at 1.0 and varying aspect
+  alone costs between -0.6 and -12.7 points depending how far from square the box is — a real
+  but comparatively small effect a squarer viewfinder would fix. But at the app's actual ~25%
+  area fraction, aspect stops mattering: 9:20 and 1:1 both land around -46 to -48 points. A
+  squarer framing guide alone would *not* fix this; the guide would still need to cover most of
+  the frame. **Unripe and underripe recall collapse hardest** (0.938→0.390, 0.904→0.312) while
+  ripe and overripe are comparatively robust (0.958→0.673, 0.971→0.554) — the effect lands
+  squarest on the project's already-weakest class boundary, not evenly across classes.
+
+  **What this settles and what it doesn't.** It rules out "leave the framing guide as specified"
+  as an option among the three named in the previous entry — the cost is too large to ship
+  un-mitigated. It does not yet choose between the other two (crop the capture to the brackets
+  before resizing, vs. widen the brackets to most of the frame and change the hint copy), because
+  both would converge toward the "full frame" rows above and this experiment doesn't distinguish
+  their remaining difference. The background in every non-baseline row is synthetic — a blurred
+  self-continuation or flat grey, not a real plantation backdrop — so the measured drop is a
+  faithful bound on the scale/aspect effect alone; real background clutter could make it worse
+  or the model could be more robust to it than to the synthetic fill. Field photographs, taken
+  both ways on a phone, remain the confirmation step this was meant to justify running.
+
+- **Fix chosen and built (2026-09-25): the capture is cropped to the framing brackets.** Of the
+  three options the previous entry left open, **crop the capture to the brackets before the
+  resize** was taken, and the deciding argument is that it does not depend on the user obeying a
+  hint: whatever they frame, the app cuts to the box they were aiming through, so the model's
+  input is fixed by code rather than by photographic discipline. Widening the brackets and
+  rewriting the hint was the alternative; it fails exactly when a user ignores the instruction,
+  which is the case the field version of this problem is made of. The measurement also killed the
+  intuition that a squarer viewfinder was the answer — at the app's ~25% area fraction a 1:1
+  framing loses **47.8** points, marginally *worse* than the tall one, because scale rather than
+  shape is what breaks it.
+
+  **How it works.** `CameraScreen` measures the `FramingGuide` composable and the preview surface
+  in the same coordinate space and passes the brackets' bounds up with the JPEG as a
+  `FramingRegion` (`app/src/main/java/.../model/FramingRegion.kt`); `MainViewModel.acceptCapture`
+  crops the decoded frame to it before anything else sees the photo, so **Review shows exactly
+  what the model is given** — the invariant that docstring already claimed is now also true of the
+  framing. The geometry does one non-obvious thing worth recording: it first cuts the decoded frame
+  to the preview's *aspect* and only then applies the brackets, because `PreviewView` is
+  FILL_CENTER and an in-memory `takePicture` may hand back the full sensor frame with its viewport
+  attached only as metadata. That makes the mapping correct whether or not CameraX already applied
+  the viewport crop, instead of resting on an assumption about which. The activity is
+  portrait-locked, so no rotation case arises. Gallery uploads are deliberately **not** cropped:
+  the app did not frame them and has nothing to say about where the subject sits.
+
+  **Verification.** `app/src/test/java/.../model/FramingRegionTest.kt` covers the mapping on the
+  JVM (reference geometry, a wider-than-preview sensor frame, aspect preservation, an unmeasured
+  preview, a degenerate region, and brackets overhanging a short preview); `:app:testDebugUnitTest`
+  and `:app:assembleDebug` both pass. What that does *not* establish is the accuracy recovery
+  itself — see the caveat below.
+
+  **What it is worth, measured at the shipped geometry rather than interpolated.** The brackets are
+  280 x 360 dp, i.e. **7:9**, which is not one of the aspects in the table above, so that exact
+  condition was scored on the full test split rather than read off the neighbouring rows
+  (`results/framing_shift_brackets/`, 2026-09-25):
+
+  | Condition | Accuracy | Δ vs baseline |
+  |---|---:|---:|
+  | Baseline (unmodified crops) | 94.16% | — |
+  | **After the crop (7:9, bunch filling the brackets)** | **92.47%** | **-1.69 pts** |
+  | Before the crop (9:20 @ 0.25, as built) | 48.46% | -45.70 pts |
+
+  So the crop recovers **44.0 of the 45.7 points** under simulation. Per-class, the residual cost
+  falls almost entirely on underripe (recall 0.904 → 0.834); unripe and ripe are unchanged or
+  marginally better (0.938 → 0.948, 0.958 → 0.960) and overripe slips 0.971 → 0.960. Mean top
+  probability drops 0.805 → 0.761, i.e. the model is slightly less certain even where it stays
+  right — worth knowing because the close-call notice keys off that margin. One detail to quote
+  accurately: the achieved area fraction is **0.841**, not 1.0, because a 7:9 canvas cannot hold a
+  roughly square bunch crop at full area. That is arguably the more realistic figure anyway — it
+  represents a user who fills the brackets well but not perfectly.
+
+  **What is still not established, and the phrasing matters.** This is the same simulator that
+  found the defect, with the same synthetic backgrounds: it measures the *scale and aspect* change
+  the crop makes, not the app. No photograph taken through the shipped build has been scored, and
+  **field photographs could not be obtained**, so the confirmation step the previous entry called
+  for is unavailable and the report must say so rather than imply end-to-end verification. Two
+  residual risks follow and are written into `docs/report_limitations.md` L8: the synthetic
+  backgrounds may not behave like real plantation clutter, and a bunch that overflows the brackets
+  is now *clipped* where previously it was merely diluted.
+
+- **Lighting robustness re-measured through the converted model (2026-09-25) — NFR-4 now holds
+  for the artefact the app ships, and the conversion's true accuracy cost is -0.44 points, not
+  the +1.0 the spike's sample suggested.** `src/training/check_tflite_lighting.py`, results in
+  `results/tflite_lighting_summary.md` + `results/<run>/tflite/lighting_metrics__float16.csv`.
+  FastViT_T8 float16, seed 42, full test split (2,722 images per condition).
+
+  Phase 3's milestone asked for the lighting test to be re-run "on the optimized model", and it
+  never had been: every robustness number in `results/` came from a Keras checkpoint, while the
+  app ships a float16 export. The concern was specific rather than procedural — float16 halves
+  every weight's mantissa, and `darkened` pushes activations into the bottom of the value range
+  where relative precision loss is largest.
+
+  | Condition | TFLite float16 | Keras, same seed | Δ (points) |
+  |---|---:|---:|---:|
+  | clean | 0.9412 | 0.9456 | **-0.44** |
+  | darkened | 0.9379 | 0.9372 | +0.07 |
+  | brightened | 0.9276 | 0.9306 | -0.29 |
+  | shadow | 0.9357 | 0.9390 | -0.33 |
+
+  - **The precision concern does not materialise, and `darkened` is the condition that moves
+    *least*.** TFLite spread is 1.36 points against the same seed's Keras 1.51 — the converted
+    model is, if anything, marginally flatter across conditions. Every condition clears the >=85%
+    NFR with more than seven points of margin. NFR-4 is now demonstrated on the deployed artefact
+    rather than on its Keras parent.
+  - **The conversion's accuracy cost is now a full-split number and it points the other way from
+    the spike.** `export_tflite.py` measured float16 at 0.925 against Keras 0.915 on 200 images —
+    a one-point *gain*. On all 2,722 it is 0.9412 against 0.9456, a **0.44-point loss**. This is
+    exactly the small-sample caveat recorded in the spike's entry, now closed with a real figure.
+    The direction matters for the report: the deployed model is slightly *worse* than the trained
+    one, and that is the honest way to write it.
+  - **The headline does not move.** It remains the three-seed campaign figure (94.55% ± 0.31) for
+    the trained model; 94.12% is a property of the deployment artefact at one seed, and belongs in
+    the Phase 3 / deployment discussion, not in place of the headline.
+  - Per-class recall under conversion tracks the Keras pattern — underripe stays the weak class
+    (0.877-0.903 across conditions) and no class collapses in any lighting condition.
+
+  **What this does not establish.** Seed 42 only, float16 only, and host-side: it is the *model's*
+  robustness through the converted graph, not the app's, and it says nothing about latency. The
+  on-device benchmark remains the open half of Phase 3 (`DeviceLatencyBenchmark`, staged and
+  compiling; see `docs/device_session_checklist.md`).
+
 ## 9. Open Questions for Supervisors
 
 > **Note (updated 2026-09-02):** the headline-framing question below is **DECIDED** — the
@@ -920,3 +1163,15 @@ Keep the GitHub repo as the source of truth: commit experiment configs and resul
   baseline (68.14%) be re-run under v2 for a fair like-for-like comparison, or reported as-is
   with the confound documented? Re-running is cheap; the argument against is that FYP1's
   result is a historical record, not a live claim.
+- **~~(2026-09-24, new — priority for supervisors given how large the number is.)~~ PARTLY
+  DECIDED 2026-09-25 — the fix is chosen and built; what remains is whether it can be accepted
+  without field confirmation.** The camera framing measurement put a **45.7-point** synthetic cost
+  on the as-built capture geometry, which ruled out shipping the guide as drawn. The app now crops
+  the capture to the brackets (§8, final entry), which simulation expects to recover most of it
+  (~92-94%). **The live question for Dr. Shahreeza is evidentiary, not a design choice:** field
+  photographs taken through the app could not be obtained, so the fix is verified geometrically —
+  unit-tested mapping, emulator run — and its accuracy benefit is inferred from simulated
+  framings with synthetic backgrounds, never measured on a real photograph. Is that acceptable for
+  the deployment claim, stated plainly as such in L8, or does the thesis need to scale back what it
+  claims the app achieves in the field? A related residual: a bunch overflowing the brackets is now
+  clipped rather than diluted, and no measurement covers that case either.

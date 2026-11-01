@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Stand-in for a real bunch photo on the Home stage strip (see DESIGN_NOTES.md,
+     "Placeholders to replace"). Tinted per stage by the caller. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="64dp"
+    android:height="77dp"
+    android:viewportWidth="64"
+    android:viewportHeight="77">
+    <!-- Two frond tips behind the bunch. -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:fillAlpha="0.55"
+        android:pathData="M32,14 C24,10 16,6 8,6 C14,12 22,16 30,18 Z M32,14 C40,10 48,6 56,6 C50,12 42,16 34,18 Z" />
+    <!-- Bunch body. -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M32,12 C45,12 55,24 55,42 C55,60 45,72 32,72 C19,72 9,60 9,42 C9,24 19,12 32,12 Z" />
+    <!-- Drupe rows, punched through as lighter gaps. -->
+    <path
+        android:fillColor="#000000"
+        android:fillAlpha="0.16"
+        android:pathData="M13,28 h38 v2.4 h-38 z M11,38 h42 v2.4 h-42 z M12,48 h40 v2.4 h-40 z M16,58 h32 v2.4 h-32 z M31,14 h2.4 v56 h-2.4 z M21,20 h2.4 v44 h-2.4 z M41,20 h2.4 v44 h-2.4 z" />
+</vector>

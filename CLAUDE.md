@@ -10,6 +10,9 @@ architecture live in their own docs so they don't drift out of sync across three
   leave-one-dataset-out). Read this for "how the system fits together."
 - **`data/README.md`** — the dataset merge pipeline specifically: which sources are in,
   taxonomy-mapping decisions per source, how to run the scripts in `src/data/`.
+- **`docs/FYP1_Report.pdf`** — the full FYP1 final report as submitted (WIA3002, Sem 2 25/26).
+  Primary source for FYP1's literature review, methodology, and baseline results/objectives;
+  the summarized numbers in `PROJECT_PLAN.md` §2 trace back to this document.
 
 ## What this is
 FYP2: Smartphone-Based Palm Oil Ripeness Detection Using Lightweight Vision Models.

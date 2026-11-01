@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Only the tokens the window/launcher needs in XML. The full token set that the UI
+         uses lives in ui/theme/Color.kt so there is a single Kotlin source of truth. -->
+    <color name="ground">#F3EEE2</color>
+    <color name="ink">#1A271D</color>
+</resources>

@@ -24,10 +24,20 @@
 > | L6 | **Rewritten 2026-09-03** on the v2 refit. Calibration is now redundant rather than harmful: +0.21 for the selected model against a ±0.31 seed spread. The headline stays uncalibrated. |
 > | L4 | **Rewritten 2026-09-02** — the TFLite conversion has now been carried out. |
 > | L5 | **Valid.** |
+> | L7 | **New 2026-09-24.** Added when the Android app's parity tests were first run on a device. Independent of every accuracy figure above; it scopes them. |
+> | L8 | **New 2026-09-24, updated 2026-09-25.** The largest single effect measured in this project (-45.7 points). Not a modelling limitation — a capture-contract mismatch between the app's UI and the training distribution. **Now corrected in the app** (the capture is cropped to the brackets), but the correction's benefit is predicted by simulation and never confirmed on a real photograph. Draft it as "found and fixed, fix unverified in the field", not as resolved. |
 >
 > The headline-framing decision is settled (`PROJECT_PLAN.md` §8, 2026-09-02): the thesis
 > headlines the main split (94.55%) and presents the 42.44-point LODO gap explicitly. A
 > limitation register drafted from this file must carry that scoping sentence.
+>
+> **L8 is new, and it is the one section describing a defect the project fixed (2026-09-24,
+> fix 2026-09-25).** It is the largest single accuracy effect anywhere in this project — bigger
+> than the v1→v2 recipe fix, bigger than the LODO gap — and it was found on the app's own capture
+> geometry, not in the model. The app now crops the capture to its framing brackets in response.
+> Do not soften this into a footnote next to L7, and do not write it up as closed either: the fix
+> is verified as geometry, and its accuracy benefit is predicted by the same simulation that found
+> the defect, never measured on a photograph taken through the app.
 
 Draft prose for the FYP2 report's limitations / discussion chapters. Kept separate from
 `PROJECT_PLAN.md` §8, which is the decisions *log* (what was decided and why, in engineering
@@ -344,3 +354,102 @@ XNNPACK or NNAPI, so the float16 recommendation may not survive an on-device mea
 > observed training failure, and the multi-seed protocol used throughout this project measures
 > total run-to-run variance — which subsumes any such nondeterminism — so the reported spreads
 > already account for it. It is noted here for completeness.
+
+---
+
+## L7 — The deployed app cannot decode a JPEG the way training did, and the gap is measured on 20 images only
+
+> Every accuracy figure in this report was produced on images decoded by TensorFlow's
+> `tf.io.decode_jpeg`. The Android application cannot call that decoder; it decodes through the
+> platform's own libjpeg configuration. The two do not agree exactly. Measured over the twenty
+> stratified test-split fixtures bundled with the application, an independent decoder disagrees
+> with TensorFlow's by up to 16 levels out of 255 per pixel (mean 1.8), and the model's output
+> probabilities move by up to 0.042 as a result, with a mean shift of 0.006. **The predicted class
+> did not change on any of the twenty images.**
+>
+> This is not an implementation defect, and the instrumented test suite is what separates the two
+> possibilities. Fed the exact input tensors the Python pipeline fed, the application reproduces
+> the reference probabilities to within 1e-4, which establishes that the interpreter wiring,
+> tensor layout and class ordering are correct. A separate unit test establishes that the
+> application's bilinear resize matches `tf.image.resize` under half-pixel centres to better than
+> 1e-3 across 800 sampled positions. With those two fixed, the residual difference is attributable
+> to image decoding alone — and the same worst case, on the same image, is reproduced to seven
+> decimal places by a desktop decoder that is not TensorFlow's, which is the evidence that the
+> decoder rather than the application is responsible.
+>
+> The limitation is one of scope, not of direction. Twenty images bound the effect anecdotally;
+> they do not quantify what decoding through a different library does to accuracy across the
+> full 2,722-image test set. That measurement is inexpensive — re-scoring the test split with a
+> second decoder — and until it is carried out, the reported test accuracy should be read as the
+> accuracy of the model on TensorFlow-decoded images, with the on-device figure expected to be
+> very close but not proven identical.
+
+---
+
+## L8 — The camera's framing guide feeds the model a distribution it never trained on, and the cost is 45.7 points
+
+> Every training, validation and test image in this project is a tight crop around a single
+> bunch. The application's camera screen instead draws a framing guide over roughly a quarter to
+> a third of the preview and then feeds the *entire* preview frame, guide and all, to the model —
+> so a user who obeys the on-screen hint hands the model a small bunch surrounded by background
+> at a scale and context nothing in training resembled. This was identified qualitatively during
+> Phase 4 screen-building and is now measured: re-scoring the full 2,722-image test split through
+> the application's actual capture geometry (a 9:20 aspect crop covering ~25% of the frame area,
+> matching the drawn guide) drops accuracy from a same-model baseline of 94.16% to **48.46%**, a
+> **45.7-point** loss. This is the single largest accuracy effect measured anywhere in this
+> project — larger than the entire under-trained-recipe correction (78.69%→93.98%) and larger
+> than the 42.44-point leave-one-dataset-out generalization gap (L1-adjacent, see the headline
+> scoping note above).
+>
+> The loss is not evenly distributed. Unripe and underripe recall — already this project's
+> weakest boundary — collapse hardest (0.938→0.390 and 0.904→0.312 respectively), while ripe and
+> overripe are comparatively robust (0.958→0.673 and 0.971→0.554). A user photographing an
+> ambiguous bunch through the current framing guide is disproportionately likely to get the
+> classes the model was already least confident about.
+>
+> Isolating the two effects the capture geometry combines — the frame being stretched to a
+> non-square aspect, and the frame covering only a fraction of the model's field of view — shows
+> scale dominates. Holding the crop at the full frame and varying only aspect costs between -0.6
+> points (a 1:1 guide) and -12.7 points (the app's actual 9:20 preview), a real but comparatively
+> minor effect. But once the crop is narrowed to the app's ~25% area fraction, aspect stops
+> mattering: a square guide at that area still loses 47.8 points, worse than the app's own 9:20
+> guide at the same area. **A squarer viewfinder alone would not fix this** — any fix has to give
+> the model a materially larger fraction of the frame, not just a better-shaped one.
+>
+> This measurement is a synthetic bound, not a field result, and should be reported as one. The
+> background behind the simulated crop is either a blurred continuation of the crop itself or
+> flat grey — a stand-in for real plantation clutter, not a photograph of it — so the true
+> on-device cost could be somewhat better or somewhat worse than 45.7 points; the honest claim is
+> that the scale/aspect mismatch alone, independent of background realism, costs roughly this
+> much.
+>
+> **The application was changed in response to this measurement rather than merely documenting
+> it.** The capture is now cropped to the framing brackets before preprocessing: the brackets are
+> measured against the camera preview at capture time and the decoded frame is cut to them, so the
+> model receives the region the user framed rather than the whole field of view, and the review
+> screen displays that same cropped region. Cropping was preferred over the alternative remedy —
+> widening the brackets and rewriting the on-screen instruction — because it does not depend on the
+> user complying with a hint. The measurement also rules out the intuitive remedy of simply making
+> the viewfinder squarer: at the application's framing, a 1:1 guide loses 47.8 points, marginally
+> worse than the tall one, because the dominant term is how much of the frame the bunch occupies
+> rather than the shape it is stretched into.
+>
+> **The recovery was measured at the geometry actually shipped, and it is a simulated recovery.**
+> The brackets are 280 x 360 dp — an aspect ratio of 7:9 — so that condition was re-scored over the
+> full test split rather than interpolated from neighbouring ones. With the bunch filling the
+> brackets, accuracy is **92.47%** against the 94.16% baseline, a residual loss of 1.69 points:
+> the correction recovers 44.0 of the 45.7 points the uncorrected framing cost. The residual falls
+> almost entirely on the underripe class, whose recall goes from 0.904 to 0.834 while unripe, ripe
+> and overripe are within a point of baseline, which is consistent with every other result in this
+> project locating the residual difficulty at the underripe boundary. Mean confidence in the top
+> class also falls, from 0.805 to 0.761. **This remains a simulation**: it measures the scale and
+> aspect change the crop makes to test-split images, using the same synthetic backgrounds that
+> found the defect, and the correctness of the crop geometry itself is covered by unit tests rather
+> than by photographs. **No image taken through the corrected application has been scored, because
+> field photographs could not be obtained for this project.**
+> Two risks consequently remain open and should be stated alongside any claim about field
+> performance: the synthetic backgrounds used throughout may not behave as real plantation clutter
+> does, and a bunch that overflows the brackets is now clipped by the crop where previously it was
+> merely diluted by the surrounding frame. The honest summary is that a quantified defect was found
+> by simulation and corrected by construction, with the correction's benefit predicted by the same
+> simulation and not independently confirmed.

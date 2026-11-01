@@ -1,0 +1,54 @@
+{
+  "model_file": "model.tflite",
+  "labels_file": "labels.txt",
+  "source_run": "fastvit_fyp2_blockft_v2_gpu_f50_k3_seed42",
+  "source_mode": "float16",
+  "source_file": "results/fastvit_fyp2_blockft_v2_gpu_f50_k3_seed42/tflite/fastvit_fyp2_blockft_v2_gpu_f50_k3_seed42__float16.tflite",
+  "sha256": "3a410e0b5514bc30955a7d80fa6ba21f839368a95b0cc4b1c63c7007940636c2",
+  "size_bytes": 6426588,
+  "generated": "2026-09-25",
+  "input": {
+    "name": "input",
+    "shape": [
+      1,
+      224,
+      224,
+      3
+    ],
+    "dtype": "float32",
+    "layout": "NHWC, RGB channel order",
+    "value_range": [
+      -1.0,
+      1.0
+    ],
+    "scaling": "x / 127.5 - 1, applied to 0..255 pixel values after resizing",
+    "resize": {
+      "target": [
+        224,
+        224
+      ],
+      "method": "bilinear",
+      "half_pixel_centers": true,
+      "antialias": false,
+      "aspect_ratio": "not preserved: the whole frame is squashed to 224x224, no crop"
+    },
+    "orientation": "apply EXIF orientation before resizing so the bunch is upright; the training crops carry no EXIF rotation",
+    "do_not": "apply ImageNet mean/std \u2014 FastViT's normalisation is inside the graph"
+  },
+  "output": {
+    "name": "Identity",
+    "shape": [
+      1,
+      4
+    ],
+    "dtype": "float32",
+    "meaning": "softmax probabilities, one per class, in labels.txt order; sum to 1",
+    "calibration": "uncalibrated \u2014 report as 'model confidence', not probability of correctness"
+  },
+  "class_names": [
+    "unripe",
+    "underripe",
+    "ripe",
+    "overripe"
+  ]
+}

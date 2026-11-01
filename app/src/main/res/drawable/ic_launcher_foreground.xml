@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A bunch silhouette: the stacked-drupe outline, not a leaf. The design drops the FYP1
+     leaf logo, but a launcher icon still has to be a shape, so this is the fruit itself. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group android:translateX="0" android:translateY="0">
+        <path
+            android:fillColor="#F3EEE2"
+            android:pathData="M54,30 C63,30 70,37 70,47 C70,61 63,78 54,78 C45,78 38,61 38,47 C38,37 45,30 54,30 Z" />
+        <path
+            android:fillColor="#1A271D"
+            android:pathData="M54,36 L54,74 M44,42 L64,42 M42,50 L66,50 M44,58 L64,58 M47,66 L61,66"
+            android:strokeColor="#1A271D"
+            android:strokeWidth="2.5" />
+    </group>
+</vector>

@@ -1,20 +1,77 @@
-# Data processing and numerical operations
-numpy
-pandas
+# Pinned dependencies for the FYP2 pipeline.
+#
+# WHY EVERYTHING IS PINNED. This project's results are only comparable when the environment
+# is held fixed: aggregate_seeds.py already refuses to pool runs across compute backends and
+# across recipe versions for exactly this reason. An unpinned requirements file quietly
+# reintroduces the same class of confound at the library level, and it cannot reproduce the
+# trained models at all — see the two drifts recorded at the bottom of this file, both of
+# which caused real problems before they were noticed.
+#
+# THERE ARE TWO ENVIRONMENTS. They must differ only in compute backend.
+#
+#   Training / evaluation / export  — WSL2 distro `fyp-gpu`, venv at /opt/tfgpu, Python 3.12.3.
+#       Every result under results/ was produced here. TensorFlow dropped Windows-native CUDA
+#       after 2.10, so the GPU is only reachable from WSL.
+#           /opt/tfgpu/bin/pip install -r requirements.txt
+#
+#   Analysis / plotting / notebooks — Windows, Python 3.12.
+#           pip install -r requirements.txt
+#
+# Python 3.12 is required, and is also load-bearing in one place worth knowing about:
+# src/training/export_tflite.py cannot use TFLite's from_saved_model or from_keras_model
+# entry points on 3.12 (both fail inside TensorFlow's trackable walk) and converts via
+# from_concrete_functions instead.
 
-# Visualization
-matplotlib
-seaborn
+# --- Core ML framework -------------------------------------------------------------------
+# The [and-cuda] extra pulls the CUDA runtime and is required for the GPU to be visible in
+# WSL; on Windows it is neither needed nor installable, hence the platform markers.
+tensorflow[and-cuda]==2.20.0 ; sys_platform == "linux"
+tensorflow==2.20.0 ; sys_platform == "win32"
 
-# Image processing
-Pillow
+# Pinned EXPLICITLY rather than left to TensorFlow to resolve. Keras is what serialises
+# .keras checkpoints, and letting the two environments drift to different Keras versions
+# made checkpoints written in WSL unloadable on Windows — see DRIFT 1 below.
+keras==3.15.1
 
-# Machine Learning framework
-tensorflow
+# Required to build or load FastViT (the selected architecture). Without it,
+# tf.keras.models.load_model() on a FastViT run fails with "Could not locate class
+# 'ChannelAffine'" — see src/training/custom_layers.py.
+keras-cv-attention-models==1.4.3
 
-# Evaluation metrics
-scikit-learn
+# --- Data processing and numerical operations --------------------------------------------
+numpy==2.2.5
+pandas==3.0.5
+scipy==1.17.1
 
-# Jupyter environment (if needed to run the notebook locally)
-notebook
-ipykernel
+# --- Evaluation metrics ------------------------------------------------------------------
+scikit-learn==1.8.0
+
+# --- Visualization -----------------------------------------------------------------------
+matplotlib==3.10.8
+seaborn==0.13.2
+
+# --- Image processing --------------------------------------------------------------------
+pillow==11.2.1
+
+# --- Jupyter (analysis environment only; not installed in the WSL training venv) ----------
+notebook==7.5.7
+ipykernel==7.2.0
+
+# =========================================================================================
+# KNOWN DRIFT, recorded 2026-09-02. Both environments were set up to match and no longer do.
+# The pins above resolve to the WSL versions, because WSL produced every result under
+# results/. Bring the Windows env up to these pins rather than the reverse.
+#
+#   DRIFT 1 — keras: WSL 3.15.1 vs Windows 3.14.1.
+#     Consequence: .keras checkpoints written in WSL do not load on Windows. 3.15 serialises
+#     GlorotUniform with input_axes/output_axes, which 3.14 rejects. Every checkpoint-loading
+#     script (evaluate.py, calibrate_thresholds.py, export_tflite.py) is WSL-only until the
+#     Windows env is updated.
+#
+#   DRIFT 2 — pandas: WSL 3.0.5 vs Windows 2.2.3, a major version apart.
+#     Consequence: not yet observed, but the aggregation scripts (aggregate_seeds.py,
+#     aggregate_lodo.py) are pandas-heavy, and pandas 3.0 changed defaults including
+#     copy-on-write and string dtype. Two environments a major version apart can produce
+#     different summary tables from identical run directories. Align before regenerating any
+#     summary that goes into the report.
+# =========================================================================================
