@@ -1,5 +1,7 @@
 package my.edu.um.palmripeness.model
 
+import android.os.Build
+import android.util.Log
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import org.json.JSONObject
@@ -73,6 +75,7 @@ class ModelParityTest {
                 }
             }
         }
+        report("parity/tensor: worst=$worst tolerance=$tolerance at $worstAt")
         assertTrue("worst probability difference $worst — $worstAt", worst <= tolerance)
     }
 
@@ -97,6 +100,10 @@ class ModelParityTest {
                 }
             }
         }
+        report(
+            "parity/jpg: argmax $argmaxAgreements/$images, worst=$worst tolerance=$tolerance " +
+                "at $worstAt"
+        )
         assertTrue("no fixtures found", images > 0)
         assertEquals(
             "the app's preprocessing changed the predicted class on some fixtures",
@@ -111,7 +118,20 @@ class ModelParityTest {
         classifier.classify(tensor) // warm up: the first call pays for lazy kernel setup
         val runs = (1..10).map { classifier.classify(tensor).inferenceMillis }
         val median = runs.sorted()[runs.size / 2]
+        report(
+            "parity/latency: median=${median}ms runs=${runs.sorted()} threads=1 " +
+                "device=${Build.MANUFACTURER} ${Build.MODEL} api=${Build.VERSION.SDK_INT}"
+        )
         assertTrue("median inference $median ms exceeds the 2000 ms requirement", median < 2000)
+    }
+
+    /**
+     * A passing assertion records nothing, and on a cloud device (Firebase Test Lab) logcat is the
+     * only output that comes back without extra setup — so the measured numbers are logged under
+     * the same tag as [DeviceLatencyBenchmark]'s report, pass or fail.
+     */
+    private fun report(line: String) {
+        Log.i(DeviceLatencyBenchmark.LOG_TAG, line)
     }
 
     private fun firstFixtureId(): String =

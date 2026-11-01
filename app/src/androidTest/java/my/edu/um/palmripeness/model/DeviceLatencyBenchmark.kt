@@ -1,6 +1,7 @@
 package my.edu.um.palmripeness.model
 
 import android.os.Build
+import android.util.Log
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import org.json.JSONObject
@@ -77,6 +78,9 @@ class DeviceLatencyBenchmark {
 
         val report = renderReport(rows, bundledMode, nfrMillis, manifest)
         println(report)
+        // One log line per report line, under one tag, so the whole table can be recovered from
+        // logcat alone — which is all a cloud device returns unless directories are pulled too.
+        report.lineSequence().forEach { Log.i(LOG_TAG, it) }
         val dest = File(appContext.getExternalFilesDir(null), "device_benchmark.md")
         dest.writeText(report)
         println("Wrote ${dest.absolutePath}")
@@ -172,6 +176,11 @@ class DeviceLatencyBenchmark {
             put(bytes)
             rewind()
         }
+    }
+
+    companion object {
+        /** Filter logcat by this tag to get the benchmark report and the parity measurements. */
+        const val LOG_TAG = "PalmBench"
     }
 
     private data class Row(

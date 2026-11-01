@@ -24,7 +24,7 @@
 > | L6 | **Rewritten 2026-09-03** on the v2 refit. Calibration is now redundant rather than harmful: +0.21 for the selected model against a ±0.31 seed spread. The headline stays uncalibrated. |
 > | L4 | **Rewritten 2026-09-02** — the TFLite conversion has now been carried out. |
 > | L5 | **Valid.** |
-> | L7 | **New 2026-09-24.** Added when the Android app's parity tests were first run on a device. Independent of every accuracy figure above; it scopes them. |
+> | L7 | **New 2026-09-24, updated 2026-11-01.** Added when the Android app's parity tests were first run on an emulator. The full-split accuracy effect is now measured (0.04 points), so the section is narrowed rather than open. |
 > | L8 | **New 2026-09-24, updated 2026-09-25.** The largest single effect measured in this project (-45.7 points). Not a modelling limitation — a capture-contract mismatch between the app's UI and the training distribution. **Now corrected in the app** (the capture is cropped to the brackets), but the correction's benefit is predicted by simulation and never confirmed on a real photograph. Draft it as "found and fixed, fix unverified in the field", not as resolved. |
 >
 > The headline-framing decision is settled (`PROJECT_PLAN.md` §8, 2026-09-02): the thesis
@@ -105,8 +105,8 @@ stands alone and Objective 2 is reported as partially met, with two architecture
 > round-trips in both the `.weights.h5` and `.keras` formats. The final criterion is the one
 > on which the `tf_keras` route had previously failed.
 
-> ⚠️ **Verify the FastViT citation venue (ICCV vs CVPR 2023) before submission.** It is not
-> confirmed in this repository.
+Citation: Vasu et al., *FastViT*, ICCV 2023, pp. 5785–5795 — venue confirmed 2026-09-04
+(`docs/FYP2_Report_Audit.md` C-1) and applied to `references.bib` 2026-11-01.
 
 ---
 
@@ -357,7 +357,7 @@ XNNPACK or NNAPI, so the float16 recommendation may not survive an on-device mea
 
 ---
 
-## L7 — The deployed app cannot decode a JPEG the way training did, and the gap is measured on 20 images only
+## L7 — The deployed app cannot decode a JPEG the way training did, and the accuracy effect is negligible
 
 > Every accuracy figure in this report was produced on images decoded by TensorFlow's
 > `tf.io.decode_jpeg`. The Android application cannot call that decoder; it decodes through the
@@ -377,12 +377,17 @@ XNNPACK or NNAPI, so the float16 recommendation may not survive an on-device mea
 > decimal places by a desktop decoder that is not TensorFlow's, which is the evidence that the
 > decoder rather than the application is responsible.
 >
-> The limitation is one of scope, not of direction. Twenty images bound the effect anecdotally;
-> they do not quantify what decoding through a different library does to accuracy across the
-> full 2,722-image test set. That measurement is inexpensive — re-scoring the test split with a
-> second decoder — and until it is carried out, the reported test accuracy should be read as the
-> accuracy of the model on TensorFlow-decoded images, with the on-device figure expected to be
-> very close but not proven identical.
+> Over the full test split the effect on accuracy is measured, and it is negligible. The same
+> float16 artifact (identical SHA-256) scores 94.16% on all 2,722 test images decoded with Pillow
+> and 94.12% decoded with TensorFlow — a difference of 0.04 points, the size of the duplicate-row
+> correction and well inside the ±0.31 seed spread. The limitation that remains is narrower than
+> before: Pillow stands in for Android's decoder rather than being it, so the claim is that a
+> change of standard decoder does not measurably move accuracy, while Android's own decoder has
+> been exercised on the twenty fixtures only.
+
+*Sources: `results/framing_shift_brackets/framing_shift.json` (`baseline`, `decoder: pil`) and
+`results/tflite_lighting_summary.md` (`clean`, TensorFlow decoding). Both runs used the same
+`model.tflite`; the full-split comparison was noticed 2026-11-01, not run as a separate experiment.*
 
 ---
 

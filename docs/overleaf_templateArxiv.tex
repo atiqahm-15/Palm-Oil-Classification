@@ -353,7 +353,7 @@ Requirement & Target & Measured & Status \\
 Test-split accuracy & $\geq$85\% & \textbf{94.55\% $\pm$ 0.31\%} (FastViT-T8, $n{=}3$) & Met (scoped, \S\ref{sec:discussion}) \\
 On-device latency & $\leq$2\,s & 47.2\,ms (converted, dev CPU, single-thread) & Not demonstrated \\
 Deployed model size & $\leq$100\,MB & \textbf{6.1\,MB} (FastViT-T8, float16 TFLite) & Met, by $>$10$\times$ \\
-Lighting stability & stable & 1.02\,$\pm$\,0.43\,pts across 4 conditions & Met \\
+Lighting stability & stable & 1.02\,$\pm$\,0.43\,pts across 4 conditions; 1.36\,pts deployed & Met \\
 Offline / no per-use cost & required & No network permission requested; model bundled & Met \\
 \bottomrule
 \end{tabular}
@@ -812,7 +812,11 @@ custom layers, and a Flex-dependent conversion would have obliged the applicatio
 full TensorFlow runtime, costing tens of megabytes. The selected architecture is deployable against a
 stock TFLite interpreter, and the deployability risk is closed.
 
-\textbf{Recommended artifact: FastViT-T8 at float16 -- 6.1\,MB, 47.2\,ms, no accuracy cost.} Half the
+\textbf{Recommended artifact: FastViT-T8 at float16 -- 6.1\,MB, 47.2\,ms, at a measured accuracy cost of
+0.44 points.} Scored on the full 2,722-image test split rather than the 200-image fidelity sample, the
+float16 artifact reaches 94.12\% against its Keras parent's 94.56\% at the same seed
+(Section~\ref{sec:lightingresults}); the sample's apparent one-point \textit{gain} was sampling noise,
+and the deployed model is slightly worse than the trained one. Half the
 float32 size for no latency penalty. Size is nowhere near binding (6.1\,MB against 100\,MB), so there is
 no reason to accept dynamic int8's 2.4$\times$ latency penalty to save a further 2.8\,MB. \textbf{NFR-3 is
 met with a margin of more than an order of magnitude.}
@@ -862,6 +866,16 @@ disagrees with TensorFlow's decoder by up to 16 levels of 255 per pixel (mean 1.
 difference is the decoder, not the application. The bundling script now performs this comparison as part
 of building the app bundle and derives the instrumented test's tolerance from it (0.064) rather than from
 an assumed value.
+
+\textbf{Over the full test split the decoder costs nothing measurable.} The twenty fixtures bound
+the decoder's effect image by image; its effect on accuracy over the whole split can be read off two
+runs already in this report. The same float16 artifact (identical SHA-256) scores \textbf{94.16\%} on
+all 2,722 test images decoded with Pillow -- the baseline of the framing study below -- and
+\textbf{94.12\%} decoded with TensorFlow -- the clean condition of Section~\ref{sec:lightingresults}.
+The difference is \textbf{0.04 points}, the same size as the duplicate-row correction and well inside
+the $\pm$0.31 seed spread. Pillow is not Android's decoder, so this measures what swapping one standard
+libjpeg configuration for another does to accuracy, not the phone itself; it is nonetheless enough to
+move the decoder from an anecdotally bounded risk to a measured, negligible one.
 
 \textbf{The framing defect.} Every image in the corpus of Section~\ref{sec:construction} is a tight crop
 around a single bunch. The application as first specified drew advisory framing brackets over roughly a
@@ -933,27 +947,39 @@ where previously it was merely diluted by the surrounding frame. Finally, nothin
 measurement -- the instrumented run was an x86\_64 emulator, which says nothing about a phone.
 
 \subsection{Lighting robustness}
+\label{sec:lightingresults}
 
 \begin{table}[t]
 \centering
-\caption{FastViT-T8 accuracy across the lighting stress-test conditions.}
+\caption{FastViT-T8 (seed 42) accuracy across the lighting stress-test conditions, for the trained Keras
+checkpoint and for the converted float16 artifact the application ships. Full test split, 2,722 images per
+condition.}
 \label{tab:lighting}
-\begin{tabular}{@{}lr@{}}
+\begin{tabular}{@{}lrr@{}}
 \toprule
-Condition & Accuracy \\
+Condition & Keras checkpoint & Deployed float16 TFLite \\
 \midrule
-Clean test baseline & 94.56\% \\
-Shadow & 93.90\% \\
-Darkened ($\times$0.7) & 93.72\% \\
-Brightened ($\times$1.3) & 93.06\% \\
+Clean test baseline & 94.56\% & 94.12\% \\
+Shadow & 93.90\% & 93.57\% \\
+Darkened ($\times$0.7) & 93.72\% & 93.79\% \\
+Brightened ($\times$1.3) & 93.06\% & 92.76\% \\
 \midrule
-\textbf{Spread across conditions} & \textbf{1.02 $\pm$ 0.43 pts} ($n{=}3$ seeds) \\
+\textbf{Spread, this seed} & \textbf{1.51 pts} & \textbf{1.36 pts} \\
+Spread, three-seed campaign & 1.02 $\pm$ 0.43 pts & -- \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\textbf{NFR-4 is met.} The spread across four lighting conditions is roughly three times the seed-to-seed
-standard deviation and no condition costs more than 1.5 points (Figure~\ref{fig:lighting}). The ranking
+\textbf{NFR-4 is met, and it holds for the artifact the application ships, not only for its Keras parent}
+(Table~\ref{tab:lighting}). On the trained model the three-seed spread is 1.02 $\pm$ 0.43 points and no
+condition costs more than 1.5 points (Figure~\ref{fig:lighting}). Re-run through the converted float16
+model, the spread is 1.36 points against the same seed's 1.51: conversion does not make the model less
+stable. That was not a foregone conclusion -- float16 halves every weight's mantissa, and darkening
+compresses activations into the bottom of the value range where relative precision loss is largest -- yet
+darkening is the condition that moves \textit{least} under conversion (+0.07 points). Every condition
+clears the 85\% bar by more than seven points; underripe remains the weakest class (recall 0.877--0.903
+across conditions) and no class collapses in any of them. The one-seed TFLite spread should not be compared
+with the three-seed 1.02, which pools seed noise the single run does not carry. The ranking
 across architectures is notable in its own right: FastViT-T8 1.02\,pts, EfficientNetB0 2.45\,pts,
 MobileNetV2 5.19\,pts -- the selected architecture is not only the most accurate but by a clear margin the
 most stable, and MobileNetV2's five-point spread is the widest measured. Brightening is consistently the
@@ -1129,13 +1155,15 @@ limit unprompted is what makes the headline credible under examination.
   \item \textbf{L8 -- Numerical reproducibility.} The XLA autotuner emitted cuDNN algorithm-mismatch
   warnings during FastViT training and not for the CNNs. The three-seed protocol measures total
   run-to-run variance, which subsumes such nondeterminism, so the reported spreads already account for it.
-  \item \textbf{L9 -- The deployed application cannot decode a JPEG the way training did}
-  (Section~\ref{sec:ondevice}). Every accuracy figure in this report was measured on TensorFlow-decoded
-  images; Android decodes through the platform's own libjpeg configuration, which disagrees by up to 16
-  levels of 255 per pixel and shifts probabilities by up to 0.042. The predicted class did not change on
-  any of the twenty fixtures measured, but twenty images bound the effect anecdotally rather than
-  quantifying it over the test set. The reported accuracies should be read as accuracies on
-  TensorFlow-decoded images.
+  \item \textbf{L9 -- The deployed application cannot decode a JPEG the way training did, and the effect
+  is measured as negligible} (Section~\ref{sec:ondevice}). Every accuracy figure in this report was
+  measured on TensorFlow-decoded images; Android decodes through the platform's own libjpeg configuration,
+  which disagrees by up to 16 levels of 255 per pixel and shifts individual probabilities by up to 0.042,
+  with no predicted class changing on the twenty fixtures run on the emulator. Over the full 2,722-image
+  test split, swapping TensorFlow's decoder for Pillow's moves the deployed artifact's accuracy by 0.04
+  points (94.12\% $\rightarrow$ 94.16\%). Pillow stands in for Android's decoder rather than being it, so
+  the claim is that a change of standard decoder does not measurably move accuracy; Android's own decoder
+  has been exercised on the twenty fixtures only.
   \item \textbf{L10 -- The framing correction is verified in simulation, not in the field}
   (Section~\ref{sec:ondevice}). The 45.70-point framing defect and the 44.0 points the crop recovers are
   both measured by re-scoring the test split through simulated capture geometries with synthetic
@@ -1188,8 +1216,7 @@ forward, and all three are reported here as findings rather than as confessions.
   \item \textbf{Photograph bunches through the application and score them}, which is the one measurement
   that would convert the framing correction of Section~\ref{sec:ondevice} from a simulated result into an
   observed one, and would simultaneously test the two risks that simulation cannot reach: real plantation
-  background, and bunches that overflow the framing brackets. It would also bound the JPEG-decoder effect
-  of L9 over more than twenty images.
+  background, and bunches that overflow the framing brackets.
   \item \textbf{Attack the generalization gap at its cause.} Re-label a stratified subset of all four
   sources against a single standard (MPOB's) and re-measure LODO; if the gap narrows materially, the
   convention-mismatch diagnosis is confirmed and label harmonisation becomes the project's most valuable

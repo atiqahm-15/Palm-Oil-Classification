@@ -235,7 +235,7 @@ informative one.
 between image patches through self-attention, at a computational cost and data appetite that are
 poor fits for edge hardware. Mobile-oriented hybrids interleave convolution with attention to
 recover locality and parameter efficiency: **MobileViT** [cite: Mehta & Rastegari, 2022] and
-**FastViT** [cite: Vasu et al., Apple, 2023 — ⚠️ verify venue, ICCV vs CVPR, before submission] are
+**FastViT** [cite: Vasu et al., ICCV 2023] are
 the two considered here. MobileViT was named in this project's plan; §3.4.3 documents why it could
 not be evaluated under the project's software stack and why FastViT-T8 replaced it. The
 architectural argument motivating H2 is that the whole-bunch colour gradient distinguishing adjacent
@@ -430,9 +430,9 @@ actually offers, and *free* to run.
 | NFR-1 | Classification accuracy on the held-out test split | ≥ 85% | **94.55% ± 0.31** (FastViT-T8, n=3) | **Met** — with the scoping in §4.1 |
 | NFR-2 | On-device inference latency per image | ≤ 2 s | 47.2 ms (converted, dev CPU, single-thread) | **Not demonstrated** — no physical-device benchmark (§4.5) |
 | NFR-3 | Deployed model size | ≤ 100 MB | **6.1 MB** (FastViT-T8, float16 TFLite) | **Met**, by more than an order of magnitude |
-| NFR-4 | Stability across daylight / shadow / low-light | Stable | **1.02 ± 0.43 pts** spread across four lighting conditions | **Met** (§4.7) |
+| NFR-4 | Stability across daylight / shadow / low-light | Stable | **1.02 ± 0.43 pts** spread across four lighting conditions; 1.36 pts on the deployed float16 artifact (seed 42) | **Met** (§4.7) |
 | NFR-5 | Supports 224×224 input | Required | Entire pipeline is 224×224 | **Met** |
-| NFR-6 | Operates with no network connectivity and no per-use cost | Required | Fully on-device; conversion needs no Flex delegate (§4.5) | **Met at model level**; app-level pending implementation |
+| NFR-6 | Operates with no network connectivity and no per-use cost | Required | Fully on-device; conversion needs no Flex delegate (§4.5); the app requests no network permission | **Met** |
 
 *Sources: `results/multiseed_v2_summary.md`, `results/tflite_export_summary.md`,
 `results/fastvit_fyp2_blockft_v2_gpu_f50_k3_seed42/lighting_stress_test_metrics.csv`.*
@@ -826,7 +826,11 @@ custom layers, and a Flex-dependent conversion would have obliged the applicatio
 the full TensorFlow runtime, costing tens of megabytes. The selected architecture is deployable
 against a stock TFLite interpreter, and the deployability risk is closed.
 
-**Recommended artifact: FastViT-T8 at float16 — 6.1 MB, 47.2 ms, no accuracy cost.** Half the float32
+**Recommended artifact: FastViT-T8 at float16 — 6.1 MB, 47.2 ms, at a measured accuracy cost of
+0.44 points.** Scored on the full 2,722-image test split rather than the 200-image fidelity sample,
+the float16 artifact reaches 94.12% against its Keras parent's 94.56% at the same seed (§4.7); the
+sample's apparent one-point *gain* was sampling noise, and the deployed model is slightly worse than
+the trained one. Half the float32
 size for no latency penalty. Size is nowhere near binding (6.1 MB against 100 MB), so there is no
 reason to accept dynamic int8's 2.4× latency penalty to save a further 2.8 MB. **NFR-3 is met with a
 margin of more than an order of magnitude.**
@@ -879,8 +883,21 @@ to seven decimal places (0.042418). The difference is the decoder, not the appli
 `make_app_bundle.py` now performs this comparison as part of building the app bundle and derives the
 instrumented test's tolerance from it (0.064) rather than from an assumed value.
 
+**Over the full test split the decoder costs nothing measurable.** The twenty fixtures bound
+the decoder's effect image by image; its effect on accuracy over the whole split can be read off two
+runs already in this report. The same float16 artifact (identical SHA-256) scores **94.16%** on all
+2,722 test images decoded with Pillow — the baseline of the framing study below — and **94.12%**
+decoded with TensorFlow — the clean condition of §4.7. The difference is **0.04 points**, the same
+size as the duplicate-row correction of §4.9 and well inside the ±0.31 seed spread. Pillow is not
+Android's decoder, so this measures what swapping one standard libjpeg configuration for another
+does to accuracy, not the phone itself; it is nonetheless enough to move the decoder from an
+anecdotally bounded risk to a measured, negligible one.
+
+*Source: `results/framing_shift_brackets/framing_shift.json` (`baseline`, `decoder: pil`) and
+`results/tflite_lighting_summary.md` (`clean`).*
+
 *Source: `app/src/androidTest/.../ModelParityTest.kt`, `app/src/test/.../ResizeParityTest.kt`,
-`app/src/main/assets/reference.json` (`decoder_spread`).*
+`app/src/androidTest/assets/fixtures/reference.json` (`decoder_spread`).*
 
 **The framing defect.** Every image in the corpus of §3.4 is a tight crop around a single bunch. The
 application as first specified drew advisory framing brackets over roughly a quarter of a full-bleed
@@ -947,19 +964,30 @@ measurement — the instrumented run was an x86_64 emulator, which says nothing 
 
 The lighting stress-test set applies three deterministic transforms to all 2,722 clean test images.
 
-| Condition | FastViT-T8 accuracy |
-|---|---:|
-| Clean test baseline | 94.56% |
-| Shadow | 93.90% |
-| Darkened (×0.7) | 93.72% |
-| Brightened (×1.3) | 93.06% |
-| **Spread across conditions** | **1.02 ± 0.43 pts** (n=3 seeds) |
+| Condition | Keras checkpoint | Deployed float16 TFLite |
+|---|---:|---:|
+| Clean test baseline | 94.56% | 94.12% |
+| Shadow | 93.90% | 93.57% |
+| Darkened (×0.7) | 93.72% | 93.79% |
+| Brightened (×1.3) | 93.06% | 92.76% |
+| **Spread, this seed** | **1.51 pts** | **1.36 pts** |
+| Spread, three-seed campaign | 1.02 ± 0.43 pts | — |
 
-*Source: `results/fastvit_fyp2_blockft_v2_gpu_f50_k3_seed42/lighting_stress_test_metrics.csv`,
-`results/multiseed_v2_summary.md`. Figure: `results/figures/05_lighting_stress_test.png`.*
+*FastViT-T8, seed 42, full test split (2,722 images per condition). Sources:
+`results/fastvit_fyp2_blockft_v2_gpu_f50_k3_seed42/lighting_stress_test_metrics.csv`,
+`results/tflite_lighting_summary.md`, `results/multiseed_v2_summary.md`. Figure:
+`results/figures/05_lighting_stress_test.png`.*
 
-**NFR-4 is met.** The spread across four lighting conditions is roughly three times the seed-to-seed
-standard deviation and no condition costs more than 1.5 points. The ranking across architectures is
+**NFR-4 is met, and it holds for the artifact the application ships, not only for its Keras parent.**
+On the trained model the three-seed spread is 1.02 ± 0.43 points and no condition costs more than 1.5
+points. Re-run through the converted float16 model, the spread is 1.36 points against the same seed's
+1.51: conversion does not make the model less stable. That was not a foregone conclusion — float16
+halves every weight's mantissa, and darkening compresses activations into the bottom of the value range
+where relative precision loss is largest — yet darkening is the condition that moves *least* under
+conversion (+0.07 points). Every condition clears the 85% bar by more than seven points; underripe
+remains the weakest class (recall 0.877–0.903 across conditions) and no class collapses in any of
+them. The one-seed TFLite spread should not be compared with the three-seed 1.02, which pools seed
+noise the single run does not carry. The ranking across architectures is
 notable in its own right: FastViT-T8 1.02 pts, EfficientNetB0 2.45 pts, MobileNetV2 5.19 pts — the
 selected architecture is not only the most accurate but by a clear margin the most stable, and
 MobileNetV2's five-point spread is the widest measured. Brightening is consistently the harshest
@@ -1109,12 +1137,15 @@ Compressed here; `docs/report_limitations.md` holds the full examiner-facing pro
 - **L8 — Numerical reproducibility.** The XLA autotuner emitted cuDNN algorithm-mismatch warnings
   during FastViT training and not for the CNNs. The three-seed protocol measures total run-to-run
   variance, which subsumes such nondeterminism, so the reported spreads already account for it.
-- **L9 — The deployed application cannot decode a JPEG the way training did** (§4.6). Every accuracy
-  figure in this report was measured on TensorFlow-decoded images; Android decodes through the
-  platform's own libjpeg configuration, which disagrees by up to 16 levels of 255 per pixel and shifts
-  probabilities by up to 0.042. The predicted class did not change on any of the twenty fixtures
-  measured, but twenty images bound the effect anecdotally rather than quantifying it over the test
-  set. The reported accuracies should be read as accuracies on TensorFlow-decoded images.
+- **L9 — The deployed application cannot decode a JPEG the way training did, and the effect is
+  measured as negligible** (§4.6). Every accuracy figure in this report was measured on
+  TensorFlow-decoded images; Android decodes through the platform's own libjpeg configuration, which
+  disagrees by up to 16 levels of 255 per pixel and shifts individual probabilities by up to 0.042,
+  with no predicted class changing on the twenty fixtures run on the emulator. Over the full 2,722-image
+  test split, swapping TensorFlow's decoder for Pillow's moves the deployed artifact's accuracy by 0.04
+  points (94.12% → 94.16%). Pillow stands in for Android's decoder rather than being it, so the claim is
+  that a change of standard decoder does not measurably move accuracy; Android's own decoder has been
+  exercised on the twenty fixtures only.
 - **L10 — The framing correction is verified in simulation, not in the field** (§4.6). The
   45.70-point framing defect and the 44.0 points the crop recovers are both measured by re-scoring
   the test split through simulated capture geometries with synthetic backgrounds. The correction's
@@ -1164,8 +1195,7 @@ confessions.
 2. **Photograph bunches through the application and score them**, which is the one measurement that
    would convert the framing correction of §4.6 from a simulated result into an observed one, and
    would simultaneously test the two risks that simulation cannot reach: real plantation background,
-   and bunches that overflow the framing brackets. It would also bound the JPEG-decoder effect of L9
-   over more than twenty images.
+   and bunches that overflow the framing brackets.
 3. **Attack the generalization gap at its cause.** Re-label a stratified subset of all four sources
    against a single standard (MPOB's) and re-measure LODO; if the gap narrows materially, the
    convention-mismatch diagnosis is confirmed and label harmonisation becomes the project's most
@@ -1197,7 +1227,8 @@ confessions.
 2. Tan, M., & Le, Q. V. (2019). EfficientNet: Rethinking Model Scaling for Convolutional Neural
    Networks. *ICML*.
 3. Vasu, P. K. A., Gabriel, J., Zhu, J., Tuzel, O., & Ranjan, A. (2023). FastViT: A Fast Hybrid
-   Vision Transformer using Structural Reparameterization. ⚠️ **Verify venue (ICCV vs CVPR).**
+   Vision Transformer using Structural Reparameterization. *Proceedings of the IEEE/CVF
+   International Conference on Computer Vision (ICCV)*, 5785–5795.
 4. Mehta, S., & Rastegari, M. (2022). MobileViT: Light-weight, General-purpose, and Mobile-friendly
    Vision Transformer. *ICLR*.
 5. Dosovitskiy, A., et al. (2021). An Image is Worth 16×16 Words: Transformers for Image Recognition
@@ -1247,10 +1278,11 @@ All figures are regenerated on the recipe-v2 campaign and live in `results/figur
 | Depth control | `results/effnet_depth_k4_v2_summary.md` |
 | LODO campaign | `results/lodo_v2_summary.md` |
 | TFLite export | `results/tflite_export_summary.md` |
+| Lighting through the deployed model | `results/tflite_lighting_summary.md` |
 | Calibration refit | `results/calibration_v2_summary.md` |
 | Duplicate-row measurement | `results/duplicate_row_impact.md` |
 | Framing defect (as specified) | `results/framing_shift/framing_shift.json` |
 | Framing correction (as built) | `results/framing_shift_brackets/framing_shift.json` |
-| On-device parity | `app/src/androidTest/.../ModelParityTest.kt`, `app/src/main/assets/reference.json` |
+| On-device parity | `app/src/androidTest/.../ModelParityTest.kt`, `app/src/androidTest/assets/fixtures/reference.json` |
 | Decisions log (full reasoning) | `PROJECT_PLAN.md` §8 |
 | Limitation prose (full) | `docs/report_limitations.md` |

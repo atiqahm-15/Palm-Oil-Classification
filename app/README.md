@@ -56,7 +56,8 @@ tensors and the staged variants are gitignored (derived weights and dataset imag
 git), so a fresh clone must run it before the instrumented tests will pass.
 
 Current bundle: FastViT_T8 float16 from
-`fastvit_fyp2_blockft_v2_gpu_f50_k3_seed42`, 6.1 MB, generated 2026-09-24.
+`fastvit_fyp2_blockft_v2_gpu_f50_k3_seed42`, 6.1 MB, generated 2026-09-25 (see
+`model_contract.json` for the sha256).
 
 ## Tests
 

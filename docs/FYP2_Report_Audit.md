@@ -3,6 +3,12 @@
 **Template treated as authoritative (per your instruction):** the Arxiv/PRIME LaTeX template itself (`PRIMEarxiv.sty` + `templateArxiv.tex` conventions) — not a separate faculty document
 **Cross-referenced:** FYP1 final report (WIA3002, `docs/FYP1_Report.pdf`), `docs/references.bib`, `docs/report_limitations.md`, `CLAUDE.md`/`PROJECT_PLAN.md` project context
 
+> **Status note, 2026-11-01.** This audit predates Phase 4. **M-1 is superseded**: the Android app was
+> built on 2026-09-24 and the report now says so (§1.6, §3.2, §4.6), so RO1 no longer overstates the
+> delivered scope. **C-1 is partly applied**: the FastViT entry is corrected to ICCV 2023 in
+> `references.bib`; the other four `[UNVERIFIED]` entries are still open. M-2, M-3 and the minor items
+> have not been re-checked against the current draft.
+
 ---
 
 ## 1. Executive Summary

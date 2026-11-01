@@ -7,14 +7,14 @@ Supervisor: Dr. Muhammad Shahreeza Safiruz Kassim · Co-Supervisor: Ahmad Syazwa
 Prepared: August 2026 — Semester break, ahead of formal FYP2 supervision
 *Revision 2: updated after the decision to stop using the original Roboflow dataset and source a new, merged dataset instead.*
 
-## 0. Current Status — updated 2026-09-03
+## 0. Current Status — updated 2026-11-01
 
 | Phase | Status |
 |---|---|
 | 0 — Environment & data sourcing | Complete |
 | 1 — Unified dataset construction | Complete |
 | 2 — Model development & comparison | **Complete under recipe v2** — FastViT_T8 94.55% ± 0.31, see end of §8 |
-| 3 — Mobile optimization (TFLite) | **Conversion + lighting done; one item left.** 12/12 exports builtin-only, no Flex (2026-09-02); FastViT_T8 float16 (6.1MB) is the recommended artefact. Lighting re-measured through the converted model 2026-09-25 — spread 1.36 pts, full-split TFLite accuracy 94.12% (-0.44 vs Keras). **Only the on-device latency benchmark remains**; it is written and compiling (`DeviceLatencyBenchmark`, `docs/device_session_checklist.md`). See end of §8 |
+| 3 — Mobile optimization (TFLite) | **Conversion + lighting done; one item left.** 12/12 exports builtin-only, no Flex (2026-09-02); FastViT_T8 float16 (6.1MB) is the recommended artefact. Lighting re-measured through the converted model 2026-09-25 — spread 1.36 pts, full-split TFLite accuracy 94.12% (-0.44 vs Keras). **Only the on-device latency benchmark remains**; it is written and compiling (`DeviceLatencyBenchmark`, `docs/device_session_checklist.md`). No phone is available (2026-11-01), so it is staged for **Firebase Test Lab** — APKs built, run sheet written, not yet run. See end of §8 |
 | 4 — Android app | **All four screens built 2026-09-24** — end-to-end capture/upload → on-device inference → result runs on an emulator; app reproduces Python to within the JPEG-decoder difference. Camera framing was measured as a -45.7-point risk and is **fixed 2026-09-25 by cropping the capture to the brackets** (verified geometrically, not in the field). Not yet seen on a phone. See end of §8 |
 | 5 — Extended evaluation & ablation | **v2 LODO complete** — FastViT_T8, 4 folds × 3 seeds, mean **52.11%** vs 94.55% main split (see end of §8). Ablations not started |
 | 6 — Report writing & viva prep | Not started |
@@ -63,11 +63,13 @@ The fine-tuning-depth confound is now controlled (see §8), and the answer chang
 discussion chapter: EfficientNetB0 gains **+1.47 points** from the extra depth under v2, where
 under v1 it gained nothing. At comparable depth FastViT_T8 still leads, but by **1.82 points
 rather than 3.29** — roughly **45% of the apparent architecture gap was depth**. The headline
-is unaffected; the *attribution* is. `docs/report_limitations.md` **L3b is now wrong, not just
-void, and must be rewritten** — its central claim is the falsified v1 control.
-Note that the v2 campaign being uniformly K=3 does *not* resolve it: K counts blocks, and
-FastViT_T8 has ten blocks against sixteen for both CNNs, so K=3 unfreezes 28.0% of FastViT's
-layers against ~19% for MobileNetV2 and EfficientNetB0. That is precisely the mismatch
+is unaffected; the *attribution* is. `docs/report_limitations.md` L3b, whose central claim was the
+falsified v1 control, **has been rewritten on this basis** (commit `8ceb8e4`).
+Note that the v2 campaign being uniformly K=3 does *not* resolve the confound by itself: K counts
+blocks, and FastViT_T8 has ten blocks against sixteen for both CNNs, so K=3 unfreezes 28.0% of
+FastViT's layers against ~19% for MobileNetV2 and EfficientNetB0. The v2 K=4 control (25.7%) is the
+closest matchable depth; a K=5 run (31.6%) would bracket FastViT from above and has not been done,
+so 1.82 points is reported as an upper bound on the architecture margin.
 
 **The fifth thing to know, added 2026-09-24.** The camera-framing question flagged at the end
 of the previous entry — that the app feeds the model a whole, background-heavy frame while
@@ -86,9 +88,14 @@ geometry, that recovers **44.0 of the 45.7 points** (92.47% against the 94.16% b
 through the shipped app has been scored and field photographs could not be obtained** — so it is
 verified geometrically and in simulation, not in a plantation, and the report must say exactly
 that. See the last two entries of §8 and `docs/report_limitations.md` L8.
-`docs/report_limitations.md` L3b describes, and the control that previously closed it
-(EfficientNetB0 at K=4) was measured under v1 and is void. Either re-run that control under v2
-— three seeds — or report the confound as unresolved.
+
+**The sixth thing to know, added 2026-11-01 — no Android phone is available.** The device session
+in `docs/device_session_checklist.md` cannot run as written. The route now prepared is **Firebase
+Test Lab**, which runs the existing instrumented tests (`DeviceLatencyBenchmark`,
+`ModelParityTest`) on real ARM phones in the cloud; it can close NFR-2, but not the hands-on checks
+(torch, low-light hint, a real bunch through the camera). See the final entry of §8. Separately,
+the JPEG-decoder limitation turned out to be already answered by two existing full-split runs:
+**0.04 points**.
 
 **Reading order:** §0 for status, the last entry of §8 for what is in flight, §9 for what
 needs a supervisor decision.
@@ -1131,6 +1138,37 @@ Keep the GitHub repo as the source of truth: commit experiment configs and resul
   on-device benchmark remains the open half of Phase 3 (`DeviceLatencyBenchmark`, staged and
   compiling; see `docs/device_session_checklist.md`).
 
+- **No Android phone; the latency benchmark moves to Firebase Test Lab (2026-11-01). Separately,
+  the decoder limitation is closed by two runs that already existed.**
+
+  **The device.** The student has no Android phone, so the one-sitting device session that would
+  close Phase 3 and Phase 4 cannot happen as planned. The automated half of it does not need a person
+  at the phone: `DeviceLatencyBenchmark` and `ModelParityTest` are ordinary instrumented tests, and
+  Firebase Test Lab runs those on real ARM phones in a data centre. That is real target hardware, so
+  it can evidence NFR-2 and settle the float16-vs-dynamic_int8 question on ARM. It cannot evidence
+  the torch, the low-light thresholds, or a real bunch photographed through the camera crop — those
+  stay "not tested on hardware" in the report. Preparation done: both tests now also log their
+  measurements to logcat under the tag `PalmBench`, because logcat is the one output Test Lab returns
+  with no extra setup (a passing parity test previously recorded nothing at all). Both APKs build;
+  `testDebugUnitTest` passes; the test APK was checked to contain the three staged variants and all
+  20 fixtures. Run sheet: `docs/device_session_checklist.md`, first section. **Not yet run** — the
+  upload sends the APKs to Google and is left to the student.
+
+  **The decoder.** L7 (L9 in the report draft) said the JPEG-decoder effect was "measured on 20
+  images only" and that re-scoring the full split with a second decoder had not been run. It had, by
+  accident, twice: `check_framing_shift.py`'s baseline scored the bundled float16 model on all 2,722
+  test images with **Pillow** decoding (94.16%), and `check_tflite_lighting.py`'s clean condition
+  scored the identical file (same SHA-256, `3a410e0b…`) on the same 2,722 rows with **TensorFlow**
+  decoding (94.12%). Difference **0.04 points**, the size of the duplicate-row correction. No new
+  inference was run; the claim rests on reading two existing artifacts side by side, and it is
+  limited in one way worth stating: Pillow stands in for Android's decoder, it is not that decoder.
+
+  **Docs synced the same day** — the report draft was one result behind: §4.5's "no accuracy cost"
+  for float16 is now the measured −0.44 points; §4.7 carries the deployed-model lighting column;
+  NFR-6 is marked met; the FastViT citation is corrected to ICCV 2023 in `references.bib` (the 4 Sep
+  audit verified it and the fix had never been applied). The other four `[UNVERIFIED]` bib entries
+  remain open.
+
 ## 9. Open Questions for Supervisors
 
 > **Note (updated 2026-09-02):** the headline-framing question below is **DECIDED** — the
@@ -1175,3 +1213,9 @@ Keep the GitHub repo as the source of truth: commit experiment configs and resul
   the deployment claim, stated plainly as such in L8, or does the thesis need to scale back what it
   claims the app achieves in the field? A related residual: a bunch overflowing the brackets is now
   clipped rather than diluted, and no measurement covers that case either.
+- **(2026-11-01, new.)** No Android phone is available. Is a latency figure from a **cloud-hosted
+  real device** (Firebase Test Lab) acceptable evidence for NFR-2, reported with its device model
+  and the caveat that a data-centre phone may throttle less than one in the field? And is it
+  acceptable that the camera-specific checks (torch, low-light hint, framing crop on a real sensor)
+  are reported as untested on hardware? If the faculty or MPOB co-supervisor can lend a phone for
+  half an hour, that closes both questions at once.

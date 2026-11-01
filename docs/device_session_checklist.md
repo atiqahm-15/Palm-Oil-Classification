@@ -6,6 +6,69 @@ decided while a phone is plugged in and the clock is running.
 
 Everything else in both phases is done or closeable at the desk — see `PROJECT_PLAN.md` §0.
 
+## No phone available (2026-11-01): run the automated half on Firebase Test Lab
+
+There is no Android phone for this project. Firebase Test Lab runs the two instrumented tests below
+on real ARM phones in a Google data centre, which covers everything in the table that follows
+**except** the torch, the low-light thresholds, and the camera-path checks — those need a person
+holding the phone and stay open.
+
+**Build (desk, ~2 min).** Assets must exist first (`make_app_bundle.py`, see below), then:
+
+```bash
+JAVA_HOME="C:/Program Files/Eclipse Adoptium/jdk-17.0.12.7-hotspot" \
+  ./gradlew :app:assembleDebug :app:assembleDebugAndroidTest
+```
+
+That gives two files to upload:
+
+- app: `app/build/outputs/apk/debug/app-debug.apk` (~34 MB)
+- test: `app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk` (~37 MB; carries the
+  three staged model variants and the 20 fixtures — check it is not ~2 MB, which means the
+  gitignored assets were missing)
+
+**Run (Firebase console, no install needed).**
+
+1. <https://console.firebase.google.com> → create a project (Analytics can be off). The free Spark
+   plan includes a small daily quota of physical-device runs; check the current limit there, since
+   it changes. One or two runs are enough.
+2. Test Lab → *Run a test* → *Instrumentation*. Upload the app APK, then the test APK.
+3. Pick **physical** devices, not virtual ones — a virtual device is the same x86 emulator problem
+   again. Prefer the **lowest-spec phone on offer** (a mid-range Samsung Galaxy A-series or similar):
+   the user this app is for carries a mid-range phone, and the slowest device is the conservative
+   bound for NFR-2. A second, newer device (e.g. a Pixel) is useful context, not a requirement.
+4. Optional, under advanced options if offered: directories to pull =
+   `/sdcard/Android/data/my.edu.um.palmripeness/files` (fetches `device_benchmark.md`). Not required —
+   the same report is also in logcat.
+5. When it finishes: open the device's result → *Logs* → filter by **`PalmBench`**. That is the full
+   benchmark table plus three `parity/...` lines (tensor parity, JPEG parity with argmax count, and a
+   1-thread median). Download the logcat and save it under `results/device_benchmark_testlab/`.
+
+Equivalent CLI, if `gcloud` is ever installed:
+
+```bash
+gcloud firebase test android run --type instrumentation \
+  --app app/build/outputs/apk/debug/app-debug.apk \
+  --test app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk \
+  --device model=<MODEL_ID>,version=<API> \
+  --directories-to-pull /sdcard/Android/data/my.edu.um.palmripeness/files
+```
+
+(`gcloud firebase test android models list` gives the model IDs.)
+
+**What uploading means.** Both APKs go to Google: the app, the 6.1 MB model and its variants, and
+the 20 fixture images (crops from the public CC BY datasets). Nothing else from the repo is sent.
+
+**How to report it.** A Test Lab phone is real target hardware, so it does evidence NFR-2. Two things
+should be said in the same sentence: it is one device model in a data centre (on mains power and
+air-cooled, so it may throttle less than a phone in a plantation), and the figure is interpreter time
+only, excluding decode and resize. Name the device, SoC and Android version, all of which the report
+records.
+
+**Then update** `PROJECT_PLAN.md` §0/§8, `docs/report_limitations.md` L4, `report.md` §4.5 and the
+`.tex` NFR table from "not demonstrated" to the measured median — and if dynamic_int8 wins, follow
+point 4 of "What to write down afterwards" below rather than swapping the artefact on latency alone.
+
 ## Why a phone, specifically
 
 | Item | Why the emulator/host cannot answer it |
@@ -72,7 +135,7 @@ reasoned about rather than observed. The phone is what turns them into evidence.
 - [ ] **Camera failure state**: hard to trigger deliberately. If another app holds the camera,
       the screen should say "The camera did not start" and offer the gallery, not sit black.
 - [ ] **Large gallery photo**: pick the biggest photo on the phone. It should classify without an
-      OOM; the decode cap came down from 24M to 4M pixels.
+      OOM; the decode cap came down from 24M to 8M pixels (`ImageInput.MAX_SOURCE_PIXELS`).
 - [ ] **Review scrim**: photograph something bright and confirm the title and subtitle stay
       readable over it.
 
@@ -83,7 +146,9 @@ reasoned about rather than observed. The phone is what turns them into evidence.
 2. `docs/report_limitations.md` **L4** — currently says the latency half is outstanding. If the
    benchmark passes, this section is rewritten from "unverified" to a measurement, the same way its
    conversion half was on 2026-09-02.
-3. `docs/report_limitations.md` **L7** — scopes the accuracy figures to emulator-only testing.
+3. `docs/report_limitations.md` **L7** — the decoder limitation. Its full-split accuracy effect is
+   already measured (0.04 points, 2026-11-01); add one line saying Android's decoder on a real phone
+   reproduced the emulator's fixture parity, or flag it if it did not.
 4. If dynamic_int8 wins on ARM: this is a **decision, not a fix**. Log it in §8 with the accuracy
    column from `results/tflite_export_summary.md` beside the latency, and re-bundle with
    `--mode dynamic_int8` only if fidelity holds. Do not let "it was faster" carry it alone.
