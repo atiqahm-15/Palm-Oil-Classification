@@ -22,7 +22,7 @@
 > | L3 | **Rewritten 2026-09-03** on the v2 depth measurement (EfficientNetB0 K=3 → K=4). Its v1 measured result (FastViT K=2 vs K=3) is void and has no v2 equivalent — see the note in the section. |
 > | L3b | **Rewritten 2026-09-03 — and its earlier conclusion was REVERSED.** The v1 K=4 control that closed this question turned out to be an under-training artifact; re-run under v2 it gives +1.47 rather than −0.42. About 45% of the apparent architecture margin is fine-tuning depth. Do not quote any pre-Sep-2026 version of this section. |
 > | L6 | **Rewritten 2026-09-03** on the v2 refit. Calibration is now redundant rather than harmful: +0.21 for the selected model against a ±0.31 seed spread. The headline stays uncalibrated. |
-> | L4 | **Rewritten 2026-09-02** — the TFLite conversion has now been carried out. |
+> | L4 | **Rewritten 2026-11-01** — on-device latency measured on two phones via Firebase Test Lab (Galaxy A12 283ms, Pixel 5 54ms median; NFR-2 met). Previously rewritten 2026-09-02 for the TFLite conversion. |
 > | L5 | **Valid.** |
 > | L7 | **New 2026-09-24, updated 2026-11-01.** Added when the Android app's parity tests were first run on an emulator. The full-split accuracy effect is now measured (0.04 points), so the section is narrowed rather than open. |
 > | L8 | **New 2026-09-24, updated 2026-09-25.** The largest single effect measured in this project (-45.7 points). Not a modelling limitation — a capture-contract mismatch between the app's UI and the training distribution. **Now corrected in the app** (the capture is cropped to the brackets), but the correction's benefit is predicted by simulation and never confirmed on a real photograph. Draft it as "found and fixed, fix unverified in the field", not as resolved. |
@@ -279,9 +279,10 @@ with more force to the v2 figures, whose deltas are several times smaller than t
 
 ---
 
-## L4 — Conversion and model size are demonstrated; on-device latency is not
+## L4 — Conversion, model size and on-device latency are demonstrated; latency on one phone only
 
-**Rewritten 2026-09-02.** The previous version of this section stated that "the TensorFlow Lite
+**Rewritten 2026-11-01** on the Firebase Test Lab measurement
+(`results/device_benchmark_testlab/device_benchmark_summary.md`, Galaxy A12 and Pixel 5). **Before that, rewritten 2026-09-02.** The previous version of this section stated that "the TensorFlow Lite
 conversion and on-device benchmark specified in Phase 3 were not carried out." The conversion
 half has since been carried out (`src/training/export_tflite.py`,
 `results/tflite_export_summary.md`). Only the on-device half remains outstanding.
@@ -298,11 +299,26 @@ half has since been carried out (`src/training/export_tflite.py`,
 > with a margin of more than an order of magnitude, and is reported as demonstrated rather than
 > indicated.
 >
-> The latency requirement remains unverified. Converted single-image inference was measured at
-> 47.2ms for FastViT-T8, 23.6ms for EfficientNetB0 and 12.0ms for MobileNetV2 at float16,
-> single-threaded on a development CPU. These figures sit three orders of magnitude below the
-> 2-second requirement, but they are not measurements of the target hardware and no claim of
-> compliance is made on their basis. A physical Android benchmark remains outstanding.
+> The latency requirement is met on physical phones. With no phone available to the project, the
+> instrumented benchmark was run on two devices hosted by Firebase Test Lab, chosen to bracket the
+> hardware a grader might carry: a Samsung Galaxy A12 (MediaTek Helio P35, eight Cortex-A53 cores,
+> Android 12), a 2020 budget handset and the lowest-specification device on offer, and a Google
+> Pixel 5 (Snapdragon 765G, Android 11), a 2020 upper-mid-range one. At the application's four
+> threads the shipped FastViT-T8 float16 artefact classifies an image in a median 283ms on the
+> budget phone and 54ms on the upper-mid one, and the slowest of fifty runs on either is 396ms — at
+> least five times inside the 2-second requirement. The float16 choice, made on host evidence,
+> survives on ARM: dynamic-range int8 is slower on both phones (3.3 times on the A12, 1.6 on the
+> Pixel), and float32 runs within a few percent of float16 at twice the size. Two limits apply.
+> These are two device models, run in a data centre on mains power, where a handset in plantation
+> heat may throttle further; and the figures are interpreter time only, excluding JPEG decoding,
+> the framing crop and the resize, so the time a user experiences is longer and was not measured.
+> The fivefold margin on the budget phone makes a breach implausible, but it is a margin rather
+> than a field measurement.
+>
+> The development-CPU figures — 47.2ms for FastViT-T8, 23.6ms for EfficientNetB0 and 12.0ms for
+> MobileNetV2 at float16, single-threaded — are a fair proxy for the upper-mid phone (47ms against
+> the Pixel's 54ms) but understate the budget phone sixfold. They preserved the ordering between
+> quantization modes on every device, not the magnitude, and are not quoted as latency evidence.
 >
 > One methodological consequence of the conversion should be recorded. The pre-quantization
 > latency figures reported in the architecture comparison — 142ms, 161ms and 157ms for
@@ -336,11 +352,11 @@ accuracy ranking.** This belongs in the results chapter, not only in the limitat
 > against its unquantized parent rather than accepted on conversion success alone.
 
 **Caveats to carry with these figures:** the export covers seed 42 only, not the project's
-three-seed protocol; the accuracy column is measured on a 200-image sample sized to compare
+three-seed protocol; and the accuracy column is measured on a 200-image sample sized to compare
 converted against unconverted predictions, on which all three architectures fall within one
-point of each other and which must not be read as an architecture comparison; and latency is
-single-threaded x86, whereas integer arithmetic frequently outperforms float16 on ARM via
-XNNPACK or NNAPI, so the float16 recommendation may not survive an on-device measurement.
+point of each other and which must not be read as an architecture comparison (the full-split
+float16 cost is −0.44 points, `results/tflite_lighting_summary.md`). The earlier caveat that
+int8 might overtake float16 on ARM is closed: on neither phone did it.
 
 *Sources: `results/tflite_export_summary.md`, `results/<run>/tflite/export_report.json`.*
 
@@ -383,7 +399,13 @@ XNNPACK or NNAPI, so the float16 recommendation may not survive an on-device mea
 > correction and well inside the ±0.31 seed spread. The limitation that remains is narrower than
 > before: Pillow stands in for Android's decoder rather than being it, so the claim is that a
 > change of standard decoder does not measurably move accuracy, while Android's own decoder has
-> been exercised on the twenty fixtures only.
+> been exercised on the twenty fixtures only. On two physical phones (via Firebase Test Lab) the
+> decoder's behaviour depended on the handset. The Google Pixel 5's worst probability shift,
+> 0.0424, matches Pillow's worst case to six significant figures. The Samsung Galaxy A12's was
+> 0.063, on a different fixture and inside the 0.064 test tolerance by a narrow margin. The
+> predicted class was unchanged on all twenty on both. The full-split 0.04-point figure therefore
+> describes a phone whose decoder behaves like the Pixel's, and indicates rather than bounds the
+> effect on the Samsung.
 
 *Sources: `results/framing_shift_brackets/framing_shift.json` (`baseline`, `decoder: pil`) and
 `results/tflite_lighting_summary.md` (`clean`, TensorFlow decoding). Both runs used the same

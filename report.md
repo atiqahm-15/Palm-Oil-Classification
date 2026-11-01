@@ -117,8 +117,8 @@ substitutions.
   material accuracy penalty.
 
 H1 and H3 are supported by the results in Chapter 4. H2 is supported *with a substantial correction
-to its magnitude* (§4.3). H4 is supported for model size and unresolved for on-device latency
-(§4.5). One further result was anticipated by no hypothesis and became the project's central
+to its magnitude* (§4.3). H4 is supported: the deployed model clears both the size and the on-device latency
+budget, at an accuracy cost of 0.44 points (§4.5). One further result was anticipated by no hypothesis and became the project's central
 methodological finding: for most of this project's duration the binding constraint on accuracy was
 neither the architecture nor the data but the training schedule (§4.2).
 
@@ -137,8 +137,9 @@ cross-source generalization is therefore evidenced by the leave-one-dataset-out 
 rather than by a field trial. The Android application (§3.2) was specified, designed, and
 implemented; it runs the exported model end to end on an emulator and reproduces the Python
 pipeline's probabilities to within the difference attributable to the platform's JPEG decoder (§4.6).
-What it has not had is a physical device: no latency figure, and no photograph taken through the
-application in a plantation, exists. Field images could not be obtained within the project period,
+Its inference path has been benchmarked on two physical phones through a cloud device service (§4.5),
+but nobody has held a phone running it: the torch and low-light hint are untested on hardware, and no
+photograph taken through the application in a plantation exists. Field images could not be obtained within the project period,
 which bounds what the deployment claims in this report can rest on and is stated as such wherever
 they appear.
 
@@ -428,7 +429,7 @@ actually offers, and *free* to run.
 | ID | Requirement | Target | Measured | Status |
 |---|---|---|---|---|
 | NFR-1 | Classification accuracy on the held-out test split | ≥ 85% | **94.55% ± 0.31** (FastViT-T8, n=3) | **Met** — with the scoping in §4.1 |
-| NFR-2 | On-device inference latency per image | ≤ 2 s | 47.2 ms (converted, dev CPU, single-thread) | **Not demonstrated** — no physical-device benchmark (§4.5) |
+| NFR-2 | On-device inference latency per image | ≤ 2 s | **283 ms** median on a budget phone (Galaxy A12), **54 ms** on an upper-mid one (Pixel 5); float16, 4 threads, interpreter time | **Met** on two physical phones (§4.5) |
 | NFR-3 | Deployed model size | ≤ 100 MB | **6.1 MB** (FastViT-T8, float16 TFLite) | **Met**, by more than an order of magnitude |
 | NFR-4 | Stability across daylight / shadow / low-light | Stable | **1.02 ± 0.43 pts** spread across four lighting conditions; 1.36 pts on the deployed float16 artifact (seed 42) | **Met** (§4.7) |
 | NFR-5 | Supports 224×224 input | Required | Entire pipeline is 224×224 | **Met** |
@@ -854,10 +855,43 @@ model's predictions against those of the model it was derived from.
 **What this does not establish.** Seed 42 only, not the three-seed protocol. The accuracy column is
 measured on a 200-image sample sized to compare converted against unconverted predictions — on that
 sample the three architectures sit within one point of each other while the full test set separates
-them by five, so **it must not be read as an architecture comparison.** Latency is single-threaded
-x86; integer arithmetic frequently outperforms float16 on ARM via XNNPACK or NNAPI, so the float16
-recommendation could reverse on a phone. **NFR-2 remains undemonstrated: a physical Android benchmark
-was not carried out.**
+them by five, so **it must not be read as an architecture comparison.** 
+Latency in the table above is single-threaded x86 and is superseded by the device measurements
+below.
+
+**On physical phones, NFR-2 is met.** No phone was available to the project, so the instrumented
+benchmark was run on two physical devices hosted by Firebase Test Lab, chosen to bracket the hardware
+a grader might carry: a **Samsung Galaxy A12** (MediaTek Helio P35, eight Cortex-A53 cores; Android
+12), a 2020 budget handset and the lowest-specification device on offer, and a **Google Pixel 5**
+(Snapdragon 765G; Android 11), a 2020 upper-mid-range one. Each configuration ran 15 warm-up and 50
+timed inferences, batch of one, timing the interpreter alone. The application uses four threads.
+
+| Mode | Size (MB) | Galaxy A12, median (ms) | Galaxy A12, max (ms) | Pixel 5, median (ms) | Pixel 5, max (ms) | Host x86 (ms) |
+|---|---:|---:|---:|---:|---:|---:|
+| float32 | 12.1 | 298.7 | 319.5 | 54.5 | 78.4 | 47.7 |
+| **float16 (shipped)** | **6.1** | **283.0** | 395.8 | **53.5** | 71.7 | 47.2 |
+| dynamic int8 | 3.3 | 939.0 | 1018.1 | 83.5 | 91.3 | 114.3 |
+
+*Source: `results/device_benchmark_testlab/device_benchmark_summary.md` (four-thread cells; single-thread figures and
+p95 there). Host x86 is the single-threaded development-CPU figure of the table above.*
+
+The shipped artifact's median is **283 ms on the budget phone and 54 ms on the upper-mid one**, and
+the slowest of fifty runs on either is 396 ms — at least five times inside the 2 s budget, with the
+budget phone the binding case. The two phones differ by 5.3× on the same model, which is the spread
+a deployment claim has to cover. Three further points follow. First, **the float16 recommendation
+survives on ARM**: the concern that integer arithmetic would overtake float16 via XNNPACK does not
+materialise for this model, and dynamic int8 is slower on both phones (3.3× on the A12, 1.6× on the
+Pixel). Second, float16 buys size, not speed: it runs within a few percent of float32 on both, and
+halving the file at no latency cost is the reason to prefer it. Third, **development-CPU latency is a
+proxy for an upper-mid phone, not for a budget one**: the host's 47 ms is close to the Pixel's 54 ms
+but understates the A12 sixfold. The ordering between modes held on every device; the magnitude
+depends on the phone.
+
+What these measurements do not cover: they are two device models, run in a data centre on mains power
+and in a cooled rack, where a phone held in plantation heat may throttle further, although nothing in
+either run suggests throttling (the max-to-median ratio does not rise across the sweep). They are
+interpreter time only: JPEG decoding, the bracket crop and the resize are excluded, so the time a user
+experiences is longer and was not measured.
 
 ### 4.6 On-device implementation and input fidelity
 
@@ -892,6 +926,15 @@ size as the duplicate-row correction of §4.9 and well inside the ±0.31 seed sp
 Android's decoder, so this measures what swapping one standard libjpeg configuration for another
 does to accuracy, not the phone itself; it is nonetheless enough to move the decoder from an
 anecdotally bounded risk to a measured, negligible one.
+
+**On physical phones the decoder difference depends on the handset.** On both phones of §4.5
+the application reproduced Python's probabilities from the exact tensors to within 2×10⁻⁶ and kept
+the predicted class on all twenty fixtures from JPEG. The Pixel 5's worst JPEG-path shift, 0.0424,
+matches Pillow's worst case to six significant figures. The Galaxy A12's was **0.063**, on a
+different image and inside the 0.064 tolerance by a narrow margin: Samsung's decoder disagrees with
+TensorFlow's about half as much again. The 0.04-point full-split figure, which used Pillow,
+therefore describes a phone whose decoder behaves like the Pixel's, and indicates rather than bounds
+the effect on the Samsung.
 
 *Source: `results/framing_shift_brackets/framing_shift.json` (`baseline`, `decoder: pil`) and
 `results/tflite_lighting_summary.md` (`clean`).*
@@ -958,7 +1001,7 @@ recovery figure therefore comes from the same simulator that found the defect ra
 independent observation. Two risks follow and are carried into §5.3: real background clutter may not
 behave as the synthetic fill does, and a bunch overflowing the brackets is now clipped by the crop
 where previously it was merely diluted by the surrounding frame. Finally, nothing here is a latency
-measurement — the instrumented run was an x86_64 emulator, which says nothing about a phone.
+measurement — the emulator says nothing about a phone; §4.5 reports the phone.
 
 ### 4.7 Lighting robustness
 
@@ -1070,9 +1113,9 @@ effect would require retraining on a deduplicated manifest to quantify, which wa
 | RQ1 | ≥85% on a leakage-free multi-source split? | **Yes** — all three architectures clear it; FastViT-T8 at 94.55% ± 0.31 |
 | RQ2 | Which architecture, and is the margin real? | **FastViT-T8**, and yes — but the margin over EfficientNetB0 is 1.82 points at matched depth, not the 3.29 implied by a naive comparison |
 | RQ3 | Does it transfer to an unseen source? | **No** — 52.11% LODO mean, a 42.44-point gap, with a convention-fitting failure mode |
-| RQ4 | Does it deploy within budget? | **Size yes** (6.1 MB / 100 MB), **lighting yes** (1.02 pts spread), **application built** and faithful to the Python pipeline within decoder tolerance, **on-device latency undemonstrated** |
+| RQ4 | Does it deploy within budget? | **Size yes** (6.1 MB / 100 MB), **lighting yes** (1.02 pts spread), **application built** and faithful to the Python pipeline within decoder tolerance, **on-device latency yes** (54–283 ms median across two phones, against 2 s) |
 
-H1 and H3 are supported. H2 is supported at roughly half its apparent magnitude. H4 is half-resolved.
+H1 and H3 are supported. H2 is supported at roughly half its apparent magnitude. H4 is supported.
 The project's most consequential finding was hypothesised by nobody: the binding constraint on
 accuracy was the training schedule (§4.2.1), and correcting it moved every architecture by 15–16
 points on unchanged data.
@@ -1119,8 +1162,12 @@ Compressed here; `docs/report_limitations.md` holds the full examiner-facing pro
 - **L2 — Fine-tuning depth is not exactly matched, and cannot be** (§4.3). The residual 2.3-point
   mismatch favours FastViT, so 1.82 points is an upper bound on its architectural advantage. A K=5
   control would bracket it and was not run.
-- **L3 — On-device latency is undemonstrated** (§4.5). Converted latency is three orders of magnitude
-  inside the 2s budget, but on a development x86 CPU. No compliance claim is made on that basis.
+- **L3 — On-device latency rests on two phone models, measured in a data centre** (§4.5). The 283 ms
+  (Samsung Galaxy A12) and 54 ms (Google Pixel 5) medians were measured on devices hosted by Firebase
+  Test Lab, not on handsets in the field: a phone in plantation heat may throttle further, and the
+  figures are interpreter time only, excluding decode and resize. The fivefold margin on the budget
+  phone makes a breach of the 2 s budget implausible, but it is a margin, not a field measurement. The
+  torch and low-light hint were never exercised on hardware.
 - **L4 — Cross-source generalization is weak and the LODO folds carry confounds** (§4.4): unequal
   fold training-set sizes, and a v1→v2 comparison in which architecture and recipe changed together.
 - **L5 — The corpus is geographically skewed.** 69% of rows come from one Indonesian mill-collected
@@ -1144,8 +1191,11 @@ Compressed here; `docs/report_limitations.md` holds the full examiner-facing pro
   with no predicted class changing on the twenty fixtures run on the emulator. Over the full 2,722-image
   test split, swapping TensorFlow's decoder for Pillow's moves the deployed artifact's accuracy by 0.04
   points (94.12% → 94.16%). Pillow stands in for Android's decoder rather than being it, so the claim is
-  that a change of standard decoder does not measurably move accuracy; Android's own decoder has been
-  exercised on the twenty fixtures only.
+  that a change of standard decoder does not measurably move accuracy. Android's own decoder has been
+  exercised on the twenty fixtures only, on two physical phones: the Pixel 5's matched Pillow's
+  worst case, while the Galaxy A12's disagreed more (worst shift 0.063 against 0.042), with the
+  predicted class unchanged on all twenty on both. The full-split figure therefore indicates rather
+  than bounds the effect on the Samsung.
 - **L10 — The framing correction is verified in simulation, not in the field** (§4.6). The
   45.70-point framing defect and the 44.0 points the crop recovers are both measured by re-scoring
   the test split through simulated capture geometries with synthetic backgrounds. The correction's
@@ -1162,9 +1212,9 @@ This project set out to determine whether a lightweight vision model could grade
 ripeness accurately enough, and cheaply enough, to run offline on a smartphone. On the terms the
 requirement was written in, it can: FastViT-T8 reaches 94.55% ± 0.31 on a leakage-free four-source
 test split, converts to a 6.1 MB TensorFlow Lite artifact needing no non-standard runtime, and varies
-by only 1.02 points across daylight, shadow and low-light conditions. Four of the five non-functional
-requirements are met; the fifth, on-device latency, is undemonstrated rather than failed, with
-converted inference measuring 47 ms against a 2,000 ms budget on development hardware.
+by only 1.02 points across daylight, shadow and low-light conditions. Every non-functional
+requirement is met: the deployed model classifies an image in a median 283 ms on a 2020 budget phone,
+and 54 ms on an upper-mid-range one, against a 2,000 ms budget.
 
 That is not the whole finding, and the report would be dishonest if it stopped there. The same model
 scores 52.11% when tested on a source it has never seen — a 42.44-point gap that is the honest
@@ -1188,10 +1238,10 @@ confessions.
 
 ### 5.5 Future work
 
-1. **Complete the deployment path** — benchmark the float16 artifact on a physical Android device
-   against NFR-2. The application exists (§4.6); what it has never run on is real hardware, which
-   also leaves the torch control and the low-light thresholds untested. On ARM, integer quantization
-   may outperform float16 via XNNPACK or NNAPI, which could reverse the float16 recommendation.
+1. **Finish the hands-on half of the deployment path.** Inference has been benchmarked on two physical
+   phones (§4.5), but the camera controls have not: the torch, the low-light thresholds, and the
+   framing crop on a real sensor need someone holding a phone. Timing the full capture-to-verdict path,
+   rather than the interpreter alone, belongs in the same session.
 2. **Photograph bunches through the application and score them**, which is the one measurement that
    would convert the framing correction of §4.6 from a simulated result into an observed one, and
    would simultaneously test the two risks that simulation cannot reach: real plantation background,
@@ -1279,6 +1329,7 @@ All figures are regenerated on the recipe-v2 campaign and live in `results/figur
 | LODO campaign | `results/lodo_v2_summary.md` |
 | TFLite export | `results/tflite_export_summary.md` |
 | Lighting through the deployed model | `results/tflite_lighting_summary.md` |
+| On-device latency and parity (Galaxy A12, Pixel 5) | `results/device_benchmark_testlab/device_benchmark_summary.md` |
 | Calibration refit | `results/calibration_v2_summary.md` |
 | Duplicate-row measurement | `results/duplicate_row_impact.md` |
 | Framing defect (as specified) | `results/framing_shift/framing_shift.json` |

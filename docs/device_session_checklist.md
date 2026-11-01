@@ -8,6 +8,10 @@ Everything else in both phases is done or closeable at the desk — see `PROJECT
 
 ## No phone available (2026-11-01): run the automated half on Firebase Test Lab
 
+> **Done 2026-11-01** on a Samsung Galaxy A12 and a Google Pixel 5 — see
+> `results/device_benchmark_testlab/device_benchmark_summary.md`. NFR-2 met; float16 kept. What is
+> left of this checklist is the "by hand" section below, which still needs a phone in someone's hand.
+
 There is no Android phone for this project. Firebase Test Lab runs the two instrumented tests below
 on real ARM phones in a Google data centre, which covers everything in the table that follows
 **except** the torch, the low-light thresholds, and the camera-path checks — those need a person

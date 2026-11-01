@@ -14,8 +14,8 @@ Prepared: August 2026 — Semester break, ahead of formal FYP2 supervision
 | 0 — Environment & data sourcing | Complete |
 | 1 — Unified dataset construction | Complete |
 | 2 — Model development & comparison | **Complete under recipe v2** — FastViT_T8 94.55% ± 0.31, see end of §8 |
-| 3 — Mobile optimization (TFLite) | **Conversion + lighting done; one item left.** 12/12 exports builtin-only, no Flex (2026-09-02); FastViT_T8 float16 (6.1MB) is the recommended artefact. Lighting re-measured through the converted model 2026-09-25 — spread 1.36 pts, full-split TFLite accuracy 94.12% (-0.44 vs Keras). **Only the on-device latency benchmark remains**; it is written and compiling (`DeviceLatencyBenchmark`, `docs/device_session_checklist.md`). No phone is available (2026-11-01), so it is staged for **Firebase Test Lab** — APKs built, run sheet written, not yet run. See end of §8 |
-| 4 — Android app | **All four screens built 2026-09-24** — end-to-end capture/upload → on-device inference → result runs on an emulator; app reproduces Python to within the JPEG-decoder difference. Camera framing was measured as a -45.7-point risk and is **fixed 2026-09-25 by cropping the capture to the brackets** (verified geometrically, not in the field). Not yet seen on a phone. See end of §8 |
+| 3 — Mobile optimization (TFLite) | **Complete 2026-11-01.** On-device latency measured on two physical phones via Firebase Test Lab: float16 median **283 ms** (Galaxy A12, budget) / **54 ms** (Pixel 5), NFR-2 met; float16 stays the artefact. Earlier: **conversion + lighting done.** 12/12 exports builtin-only, no Flex (2026-09-02); FastViT_T8 float16 (6.1MB) is the recommended artefact. Lighting re-measured through the converted model 2026-09-25 — spread 1.36 pts, full-split TFLite accuracy 94.12% (-0.44 vs Keras). See end of §8 |
+| 4 — Android app | **All four screens built 2026-09-24** — end-to-end capture/upload → on-device inference → result runs on an emulator; app reproduces Python to within the JPEG-decoder difference. Camera framing was measured as a -45.7-point risk and is **fixed 2026-09-25 by cropping the capture to the brackets** (verified geometrically, not in the field). Inference path and parity tests run on two physical phones via Firebase Test Lab (2026-11-01); **the camera UI — torch, low-light hint, bracket crop on a real sensor — has never run on hardware**, and no phone is available to do it. See end of §8 |
 | 5 — Extended evaluation & ablation | **v2 LODO complete** — FastViT_T8, 4 folds × 3 seeds, mean **52.11%** vs 94.55% main split (see end of §8). Ablations not started |
 | 6 — Report writing & viva prep | Not started |
 
@@ -90,12 +90,14 @@ verified geometrically and in simulation, not in a plantation, and the report mu
 that. See the last two entries of §8 and `docs/report_limitations.md` L8.
 
 **The sixth thing to know, added 2026-11-01 — no Android phone is available.** The device session
-in `docs/device_session_checklist.md` cannot run as written. The route now prepared is **Firebase
-Test Lab**, which runs the existing instrumented tests (`DeviceLatencyBenchmark`,
-`ModelParityTest`) on real ARM phones in the cloud; it can close NFR-2, but not the hands-on checks
-(torch, low-light hint, a real bunch through the camera). See the final entry of §8. Separately,
-the JPEG-decoder limitation turned out to be already answered by two existing full-split runs:
-**0.04 points**.
+in `docs/device_session_checklist.md` cannot run as written. Its automated half was run instead on
+**Firebase Test Lab**, on two physical phones the same day: **NFR-2 is met** — float16 median
+**283 ms** on a Samsung Galaxy A12 (budget) and **54 ms** on a Google Pixel 5 — and float16 stays the
+artefact, since dynamic_int8 is slower on both. Phase 3 is complete. The hands-on checks (torch,
+low-light hint, a real bunch through the camera) remain undone. Separately, the JPEG-decoder
+limitation turned out to be answered by two existing full-split runs (**0.04 points**, Pillow vs
+TensorFlow), though the Samsung's own decoder disagrees more than Pillow's. See the last two entries
+of §8.
 
 **Reading order:** §0 for status, the last entry of §8 for what is in flight, §9 for what
 needs a supervisor decision.
@@ -1169,6 +1171,42 @@ Keep the GitHub repo as the source of truth: commit experiment configs and resul
   audit verified it and the fix had never been applied). The other four `[UNVERIFIED]` bib entries
   remain open.
 
+- **On-device latency measured on two physical phones (2026-11-01) — NFR-2 is met, float16 stays,
+  and Phase 3 is complete.** Firebase Test Lab, physical devices, the APKs from commit `75f5b87`.
+  Summary `results/device_benchmark_testlab/device_benchmark_summary.md`; raw logcat lines alongside.
+
+  | float16 (shipped), 4 threads | Samsung Galaxy A12 | Google Pixel 5 |
+  |---|---:|---:|
+  | Class / SoC | 2020 budget / Helio P35 | 2020 upper-mid / Snapdragon 765G |
+  | Median / max of 50 (ms) | **283.0** / 395.8 | **53.5** / 71.7 |
+  | dynamic_int8 median (ms) | 939.0 (3.3× slower) | 83.5 (1.6× slower) |
+  | JPEG parity, worst shift (tol 0.064) / argmax | 0.0629 / 20 of 20 | 0.0424 / 20 of 20 |
+  | Tensor parity, worst shift (tol 1e-4) | 1.9e-6 | 1.9e-6 |
+
+  - **NFR-2 is met with at least a fivefold margin**, on the budget phone — the binding case and the
+    one chosen deliberately as the lowest-spec device on offer. Hardware spread between the two
+    phones is 5.3× for the same model.
+  - **The float16-vs-dynamic_int8 decision, made on x86 evidence, holds on ARM.** The concern
+    (`export_tflite.py` spike entry, above) that int8 would win via XNNPACK did not materialise on
+    either device. No re-bundling. float16 runs within a few percent of float32, so its case is size.
+  - **Host latency was a proxy for the upper-mid phone only.** 47 ms on x86 against 54 ms on the
+    Pixel, but 283 ms on the A12. The report's claim that framework-side latency is a poor predictor
+    is now stated precisely: the *ordering* survived everywhere, the *magnitude* depends on the phone.
+  - **Decoder behaviour is handset-dependent.** The Pixel's JPEG path reproduces Pillow's worst case
+    (0.042418) to six significant figures; the Samsung's is 0.063 on a different fixture, passing the
+    0.064 tolerance with about 2% to spare (0.0011). The argmax assertion held on both. Consequence: L7's 0.04-point
+    full-split figure describes Pillow-like decoders and only indicates the Samsung's effect, and the
+    0.064 tolerance — derived from Pillow — would likely fail on some other vendor's decoder without
+    the predicted class changing. Left as is; flagged here so a future failure on another phone is
+    read as a tolerance question first.
+  - **What it is not.** Two device models in a data centre (mains power, cooled rack; no throttling
+    visible within either run); interpreter time only, not capture-to-verdict; and no hands-on checks —
+    torch, low-light thresholds, the bracket crop on a real sensor are still never exercised on
+    hardware.
+
+  Report, Overleaf `.tex`, `docs/report_limitations.md` L3/L4/L7 and the NFR tables were updated the
+  same day from "not demonstrated" to these measurements.
+
 ## 9. Open Questions for Supervisors
 
 > **Note (updated 2026-09-02):** the headline-framing question below is **DECIDED** — the
@@ -1213,8 +1251,9 @@ Keep the GitHub repo as the source of truth: commit experiment configs and resul
   the deployment claim, stated plainly as such in L8, or does the thesis need to scale back what it
   claims the app achieves in the field? A related residual: a bunch overflowing the brackets is now
   clipped rather than diluted, and no measurement covers that case either.
-- **(2026-11-01, new.)** No Android phone is available. Is a latency figure from a **cloud-hosted
-  real device** (Firebase Test Lab) acceptable evidence for NFR-2, reported with its device model
+- **(2026-11-01, new — now measured: 283 ms Galaxy A12 / 54 ms Pixel 5, see §8.)** No Android phone
+  is available. Is a latency figure from a **cloud-hosted real device** (Firebase Test Lab) acceptable
+  evidence for NFR-2, reported with its device model
   and the caveat that a data-centre phone may throttle less than one in the field? And is it
   acceptable that the camera-specific checks (torch, low-light hint, framing crop on a real sensor)
   are reported as untested on hardware? If the faculty or MPOB co-supervisor can lend a phone for
